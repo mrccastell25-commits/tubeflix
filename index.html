@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TubeFlix - Sua Plataforma de Vídeos do YouTube estilo Netflix</title>
+    <!-- Google Fonts Inter & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons (para ícones modernos e leves) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Firebase SDKs (Compat version para Realtime Database) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-check-compat.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Barra de Navegação Estilo Netflix -->
+    <nav class="netflix-navbar" id="navbar">
+        <div class="nav-left">
+            <h1 class="logo">TUBE<span>FLIX</span></h1>
+            <ul class="nav-links">
+                <li class="active" data-filter="todos">Início</li>
+                <li data-filter="filmes">Filmes</li>
+                <li data-filter="series">Séries</li>
+                <li data-filter="documentarios">Documentários</li>
+                <li data-filter="tutoriais">Tutoriais / Tech</li>
+                <li data-filter="favoritos">Minha Lista</li>
+            </ul>
+        </div>
+        <div class="nav-right">
+            <div class="search-container">
+                <button class="search-btn" id="search-toggle-btn">
+                    <i data-lucide="search"></i>
+                </button>
+                <input type="text" id="search-input" class="search-input" placeholder="Títulos, canais ou gêneros...">
+            </div>
+            
+            <button class="admin-btn" id="btn-admin-panel" title="Painel do Administrador">
+                <i data-lucide="lock"></i>
+                <span>Painel Admin</span>
+            </button>
+            <div class="profile-avatar">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/0/0b/Netflix-avatar.png" alt="Perfil">
+            </div>
+        </div>
+    </nav>
+
+    <!-- Banner Principal / Hero Destaque -->
+    <header class="hero-banner" id="hero-banner">
+        <div class="hero-background" id="hero-bg-image"></div>
+        <div class="hero-overlay"></div>
+        <div class="hero-content">
+            <span class="hero-tagline"><i data-lucide="award"></i> EM DESTAQUE HOJE</span>
+            <h2 class="hero-title" id="hero-title">Título do Vídeo em Destaque</h2>
+            <div class="hero-meta">
+                <span class="match-score" id="hero-match">98% Match</span>
+                <span class="release-year" id="hero-year">2026</span>
+                <span class="age-rating rating-16" id="hero-rating">16+</span>
+                <span class="duration" id="hero-duration">2h 15m</span>
+            </div>
+            <p class="hero-description" id="hero-description">
+                Esta é uma descrição emocionante de exemplo sobre o vídeo que está em destaque. 
+                Adicione seus próprios vídeos do YouTube e o sistema escolherá automaticamente um destaque premium para a capa.
+            </p>
+            <div class="hero-actions">
+                <button class="btn-play-hero" id="hero-play-btn">
+                    <i data-lucide="play" class="fill-current"></i>
+                    <span>Assistir</span>
+                </button>
+                <button class="btn-info-hero" id="hero-info-btn">
+                    <i data-lucide="info"></i>
+                    <span>Mais Informações</span>
+                </button>
+            </div>
+        </div>
+        <div class="hero-gradient-bottom"></div>
+    </header>
+
+    <!-- Conteúdo Principal com Fileiras de Categorias -->
+    <main class="main-container">
+        <div id="no-videos-state" class="empty-library hidden">
+            <div class="empty-icon">
+                <i data-lucide="clapperboard"></i>
+            </div>
+            <h2>Sua biblioteca está vazia</h2>
+            <p>Clique no painel administrativo para adicionar os seus vídeos favoritos do YouTube!</p>
+            <button class="btn-add-initial" id="btn-add-initial">
+                <i data-lucide="plus"></i> Adicionar Primeiro Vídeo
+            </button>
+        </div>
+
+        <!-- Seções de Fileiras (Sliders) -->
+        <section class="video-row-section" id="section-destaques">
+            <h3 class="row-title">Populares na TubeFlix</h3>
+            <div class="row-carousel-container">
+                <button class="carousel-control prev" onclick="scrollCarousel('carousel-destaques', -1)">
+                    <i data-lucide="chevron-left"></i>
+                </button>
+                <div class="row-carousel" id="carousel-destaques">
+                    <!-- Cards inseridos dinamicamente -->
+                </div>
+                <button class="carousel-control next" onclick="scrollCarousel('carousel-destaques', 1)">
+                    <i data-lucide="chevron-right"></i>
+                </button>
+            </div>
+        </section>
+
+        <section class="video-row-section" id="section-filmes">
+            <h3 class="row-title">Filmes Imperdíveis</h3>
+            <div class="row-carousel-container">
+                <button class="carousel-control prev" onclick="scrollCarousel('carousel-filmes', -1)">
+                    <i data-lucide="chevron-left"></i>
+                </button>
+                <div class="row-carousel" id="carousel-filmes">
+                    <!-- Cards inseridos dinamicamente -->
+                </div>
+                <button class="carousel-control next" onclick="scrollCarousel('carousel-filmes', 1)">
+                    <i data-lucide="chevron-right"></i>
+                </button>
+            </div>
+        </section>
+
+        <section class="video-row-section" id="section-series">
+            <h3 class="row-title">Séries e Episódios</h3>
+            <div class="row-carousel-container">
+                <button class="carousel-control prev" onclick="scrollCarousel('carousel-series', -1)">
+                    <i data-lucide="chevron-left"></i>
+                </button>
+                <div class="row-carousel" id="carousel-series">
+                    <!-- Cards inseridos dinamicamente -->
+                </div>
+                <button class="carousel-control next" onclick="scrollCarousel('carousel-series', 1)">
+                    <i data-lucide="chevron-right"></i>
+                </button>
+            </div>
+        </section>
+
+        <section class="video-row-section" id="section-documentarios">
+            <h3 class="row-title">Documentários Fascinantes</h3>
+            <div class="row-carousel-container">
+                <button class="carousel-control prev" onclick="scrollCarousel('carousel-documentarios', -1)">
+                    <i data-lucide="chevron-left"></i>
+                </button>
+                <div class="row-carousel" id="carousel-documentarios">
+                    <!-- Cards inseridos dinamicamente -->
+                </div>
+                <button class="carousel-control next" onclick="scrollCarousel('carousel-documentarios', 1)">
+                    <i data-lucide="chevron-right"></i>
+                </button>
+            </div>
+        </section>
+
+        <section class="video-row-section" id="section-tutoriais">
+            <h3 class="row-title">Tecnologia, Cursos e Tutoriais</h3>
+            <div class="row-carousel-container">
+                <button class="carousel-control prev" onclick="scrollCarousel('carousel-tutoriais', -1)">
+                    <i data-lucide="chevron-left"></i>
+                </button>
+                <div class="row-carousel" id="carousel-tutoriais">
+                    <!-- Cards inseridos dinamicamente -->
+                </div>
+                <button class="carousel-control next" onclick="scrollCarousel('carousel-tutoriais', 1)">
+                    <i data-lucide="chevron-right"></i>
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal do Player Cinemático do YouTube -->
+    <div id="player-modal" class="modal-overlay hidden">
+        <div class="player-modal-container">
+            <button class="btn-close-player" id="close-player-btn">
+                <i data-lucide="x"></i>
+            </button>
+            
+            <div class="video-iframe-wrapper">
+                <!-- Iframe do YouTube inserido dinamicamente -->
+                <div id="youtube-player-placeholder"></div>
+            </div>
+
+            <div class="player-info-container">
+                <div class="player-info-left">
+                    <div class="player-meta">
+                        <span class="match-score" id="modal-video-match">95% Match</span>
+                        <span class="release-year" id="modal-video-year">2026</span>
+                        <span class="age-rating rating-l" id="modal-video-rating">L</span>
+                        <span class="duration" id="modal-video-duration">45m</span>
+                        <span class="quality-badge">HD</span>
+                    </div>
+                    <h2 class="player-video-title" id="modal-video-title">Título Completo do Vídeo</h2>
+                    <p class="player-video-synopsis" id="modal-video-description">
+                        Sinopse do vídeo extraída ou adicionada pelo painel administrativo.
+                    </p>
+                </div>
+                <div class="player-info-right">
+                    <div class="info-group">
+                        <span class="label">Elenco:</span>
+                        <span class="value" id="modal-video-cast">Atores e convidados</span>
+                    </div>
+                    <div class="info-group">
+                        <span class="label">Direção/Canal:</span>
+                        <span class="value" id="modal-video-director">Nome do Canal do YouTube</span>
+                    </div>
+                    <div class="info-group">
+                        <span class="label">Categoria:</span>
+                        <span class="value" id="modal-video-category">Categoria</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Senha Administrativa -->
+    <div id="modal-password" class="modal-overlay hidden">
+        <div class="auth-modal-card">
+            <div class="auth-header">
+                <h2>Acesso Restrito</h2>
+                <button class="btn-close-auth" id="close-pass-modal">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <p class="auth-subtitle">Digite a senha de administrador para gerenciar o catálogo de vídeos.</p>
+            <div class="form-group">
+                <div class="input-icon-wrapper">
+                    <i data-lucide="key" class="input-icon"></i>
+                    <input type="password" id="admin-pass-input" class="form-control" placeholder="Senha (padrão: 123)">
+                </div>
+            </div>
+            <button id="btn-submit-pass" class="btn-auth-submit">Entrar no Painel</button>
+        </div>
+    </div>
+
+    <!-- Modal do Painel de Controle Administrativo (CRUD) -->
+    <div id="modal-admin" class="modal-overlay hidden">
+        <div class="admin-panel-card">
+            <div class="admin-panel-header">
+                <div class="header-title">
+                    <i data-lucide="sliders"></i>
+                    <h2 id="admin-modal-title">Painel de Controle - TubeFlix</h2>
+                </div>
+                <button class="btn-close-admin" id="close-admin-modal">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+
+            <div class="admin-split-layout">
+                <!-- Formulário de Adicionar/Editar -->
+                <div class="admin-form-section">
+                    <h3 class="section-subtitle" id="form-action-title">Adicionar Novo Vídeo</h3>
+                    <form id="add-video-form">
+                        <input type="hidden" id="edit-video-id">
+                        
+                        <div class="form-group">
+                            <label for="new-url">Link do Vídeo do YouTube <span class="required">*</span></label>
+                            <div class="url-input-wrapper">
+                                <input type="url" id="new-url" class="form-control" required placeholder="https://www.youtube.com/watch?v=...">
+                                <button type="button" class="btn-fetch-metadata" id="btn-fetch-url" title="Extrair metadados do link">
+                                    <i data-lucide="wand2"></i>
+                                    <span>Extrair</span>
+                                </button>
+                            </div>
+                            <span class="input-hint">Suporta links normais, shorts, mobile ou compartilhados.</span>
+                        </div>
+
+                        <!-- Área de Metadados Extraídos / Editáveis -->
+                        <div class="metadata-form-grid">
+                            <div class="form-group span-full">
+                                <label for="new-title">Título do Vídeo <span class="required">*</span></label>
+                                <input type="text" id="new-title" class="form-control" required placeholder="Ex: Nome do Filme ou Vídeo">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="new-category">Categoria <span class="required">*</span></label>
+                                <select id="new-category" class="form-control" required>
+                                    <option value="filmes">Filme</option>
+                                    <option value="series">Série</option>
+                                    <option value="documentarios">Documentário</option>
+                                    <option value="tutoriais">Tech / Tutorial</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="new-rating">Classificação <span class="required">*</span></label>
+                                <select id="new-rating" class="form-control" required>
+                                    <option value="L">Livre (L)</option>
+                                    <option value="10">10+</option>
+                                    <option value="12">12+</option>
+                                    <option value="14">14+</option>
+                                    <option value="16">16+</option>
+                                    <option value="18">18+</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="new-duration">Duração (minutos ou tempo) <span class="required">*</span></label>
+                                <input type="text" id="new-duration" class="form-control" required placeholder="Ex: 120 min ou 2h 15m">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="new-year">Ano de Lançamento <span class="required">*</span></label>
+                                <input type="number" id="new-year" class="form-control" required min="1900" max="2100" value="2026">
+                            </div>
+
+                            <div class="form-group span-full">
+                                <label for="new-director">Canal Produtor / Diretor <span class="required">*</span></label>
+                                <input type="text" id="new-director" class="form-control" required placeholder="Ex: Nome do Canal ou Estúdio">
+                            </div>
+
+                            <div class="form-group span-full">
+                                <label for="new-cast">Elenco / Atores</label>
+                                <input type="text" id="new-cast" class="form-control" placeholder="Atores principais separados por vírgula">
+                            </div>
+
+                            <div class="form-group span-full">
+                                <label for="new-description">Sinopse / Descrição <span class="required">*</span></label>
+                                <textarea id="new-description" class="form-control" rows="3" required placeholder="Um breve resumo sobre o conteúdo do vídeo..."></textarea>
+                            </div>
+
+                            <div class="form-group span-full">
+                                <label>Imagem de Capa (Extraída automaticamente, mas você pode mudar o link)</label>
+                                <input type="url" id="new-image-url" class="form-control" placeholder="https://exemplo.com/imagem-de-capa.jpg">
+                                <div class="backdrop-preview-box">
+                                    <img id="image-preview" src="https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=600" alt="Preview da Capa">
+                                    <div class="preview-overlay">Preview da Capa</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Controles de Destaque -->
+                        <div class="admin-checkbox-group">
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="new-featured" name="featured">
+                                <label for="new-featured">Tornar este vídeo o Destaque Principal do Banner</label>
+                            </div>
+                        </div>
+
+                        <div class="form-actions-buttons">
+                            <button type="submit" id="btn-save-video" class="btn-submit-action">
+                                <i data-lucide="check"></i> Salvar Vídeo
+                            </button>
+                            <button type="button" id="btn-cancel-edit" class="btn-cancel-action hidden">
+                                Cancelar Edição
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Lista de Gerenciamento -->
+                <div class="admin-list-section">
+                    <div class="list-section-header">
+                        <h3 class="section-subtitle">Vídeos Cadastrados</h3>
+                        <div class="backup-actions">
+                            <a href="playlist.html" target="_blank" class="btn-backup" style="text-decoration: none;" title="Extrair vídeos de uma Playlist do YouTube">
+                                <i data-lucide="list-video"></i> Extrair Playlist
+                            </a>
+                            <button id="btn-export-json" class="btn-backup" title="Exportar Biblioteca para arquivo JSON">
+                                <i data-lucide="download"></i> Exportar
+                            </button>
+                            <button id="btn-import-json-trigger" class="btn-backup" title="Importar Biblioteca de arquivo JSON">
+                                <i data-lucide="upload"></i> Importar
+                            </button>
+                            <input type="file" id="import-json-file" accept=".json" style="display: none;">
+                        </div>
+                    </div>
+
+                    <div class="admin-videos-list" id="admin-videos-container">
+                        <!-- Itens carregados via JS -->
+                        <div class="loading-spinner-container">
+                            <div class="spinner"></div>
+                            <p>Carregando catálogo...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rodapé Premium -->
+    <footer class="netflix-footer">
+        <div class="footer-links">
+            <a href="#">Termos de Uso</a>
+            <a href="#">Privacidade</a>
+            <a href="#">Centro de Ajuda</a>
+            <a href="#">Sobre nós</a>
+        </div>
+        <div class="footer-developer">
+            <p>&copy; <span id="current-year">2026</span> TubeFlix. Feito com fins educacionais e de lazer.</p>
+            <div class="footer-badges">
+                <span class="badge">v2.0.0-netflix-design</span>
+                <span class="badge firebase-badge"><i data-lucide="database"></i> Firebase Realtime</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Aplicação JavaScript -->
+    <script src="app.js"></script>
+</body>
+</html>

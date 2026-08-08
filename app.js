@@ -83,6 +83,13 @@ const imagePreview = document.getElementById('image-preview');
 const newImageUrl = document.getElementById('new-image-url');
 const editVideoIdInput = document.getElementById('edit-video-id');
 const adminVideosContainer = document.getElementById('admin-videos-container');
+const newImageFile = document.getElementById('new-image-file');
+const btnUploadImage = document.getElementById('btn-upload-image');
+const posterAlignPreview = document.getElementById('poster-align-preview');
+const newImageZoom = document.getElementById('new-image-zoom');
+const newImagePosX = document.getElementById('new-image-pos-x');
+const newImagePosY = document.getElementById('new-image-pos-y');
+const btnResetAlign = document.getElementById('btn-reset-align');
 const btnCancelEdit = document.getElementById('btn-cancel-edit');
 const formActionTitle = document.getElementById('form-action-title');
 
@@ -226,6 +233,61 @@ function setupEventListeners() {
         }
     });
 
+    // Atualiza o preview quando o usuário cola/edita o link da imagem manualmente
+    newImageUrl.addEventListener('input', () => {
+        if (newImageUrl.value.trim()) {
+            imagePreview.src = newImageUrl.value.trim();
+        }
+    });
+
+    // Carregar imagem de capa do computador
+    btnUploadImage.addEventListener('click', () => newImageFile.click());
+
+    newImageFile.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            alert('Por favor, selecione um arquivo de imagem válido.');
+            return;
+        }
+
+        if (file.size > 2 * 1024 * 1024) {
+            const proceed = confirm('Essa imagem tem mais de 2MB e pode deixar o carregamento do site mais lento. Deseja continuar mesmo assim?');
+            if (!proceed) {
+                newImageFile.value = '';
+                return;
+            }
+        }
+
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const dataUrl = ev.target.result;
+            newImageUrl.value = dataUrl;
+            imagePreview.src = dataUrl;
+            // Reseta o enquadramento ao trocar de imagem
+            newImagePosX.value = 50;
+            newImagePosY.value = 50;
+            newImageZoom.value = 100;
+            applyImageAlignToPreview();
+        };
+        reader.readAsDataURL(file);
+    });
+
+    // Zoom da capa
+    newImageZoom.addEventListener('input', applyImageAlignToPreview);
+
+    // Redefinir enquadramento (posição e zoom)
+    btnResetAlign.addEventListener('click', () => {
+        newImagePosX.value = 50;
+        newImagePosY.value = 50;
+        newImageZoom.value = 100;
+        applyImageAlignToPreview();
+    });
+
+    // Arrastar a capa dentro do quadro de preview para reposicionar
+    setupPosterDragAndDrop();
+
     // Salvar Vídeo (Novo ou Editado)
     addVideoForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -243,6 +305,9 @@ function setupEventListeners() {
             cast: document.getElementById('new-cast').value.trim(),
             description: document.getElementById('new-description').value.trim(),
             imageUrl: newImageUrl.value.trim() || `https://img.youtube.com/vi/${extractYouTubeId(newUrlInput.value.trim())}/maxresdefault.jpg`,
+            imagePosX: parseFloat(newImagePosX.value) || 50,
+            imagePosY: parseFloat(newImagePosY.value) || 50,
+            imageZoom: parseFloat(newImageZoom.value) || 100,
             featured: document.getElementById('new-featured').checked,
             createdAt: new Date().getTime()
         };
@@ -390,6 +455,66 @@ async function getYouTubeMetadata(videoUrl) {
         console.warn("API oEmbed falhou. Usando simulador local de dados.", e);
         return null;
     }
+}
+
+// Aplica a posição (arraste) e o zoom atuais ao preview da capa no painel admin
+function applyImageAlignToPreview() {
+    const zoom = parseFloat(newImageZoom.value) || 100;
+    const posX = parseFloat(newImagePosX.value) || 50;
+    const posY = parseFloat(newImagePosY.value) || 50;
+    imagePreview.style.objectPosition = `${posX}% ${posY}%`;
+    imagePreview.style.transform = `scale(${zoom / 100})`;
+}
+
+// Permite arrastar a imagem dentro do quadro de preview para reposicionar a capa
+function setupPosterDragAndDrop() {
+    let dragging = false;
+    let startClientX = 0;
+    let startClientY = 0;
+    let startPosX = 50;
+    let startPosY = 50;
+
+    posterAlignPreview.addEventListener('pointerdown', (e) => {
+        dragging = true;
+        try { posterAlignPreview.setPointerCapture(e.pointerId); } catch (err) {}
+        startClientX = e.clientX;
+        startClientY = e.clientY;
+        startPosX = parseFloat(newImagePosX.value) || 50;
+        startPosY = parseFloat(newImagePosY.value) || 50;
+    });
+
+    posterAlignPreview.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        const rect = posterAlignPreview.getBoundingClientRect();
+        const deltaXPercent = ((e.clientX - startClientX) / rect.width) * 100;
+        const deltaYPercent = ((e.clientY - startClientY) / rect.height) * 100;
+
+        // Arrastar para a direita/baixo move o enquadramento visível para o lado oposto da imagem
+        let newPosX = startPosX - deltaXPercent;
+        let newPosY = startPosY - deltaYPercent;
+        newPosX = Math.max(0, Math.min(100, newPosX));
+        newPosY = Math.max(0, Math.min(100, newPosY));
+
+        newImagePosX.value = newPosX.toFixed(1);
+        newImagePosY.value = newPosY.toFixed(1);
+        applyImageAlignToPreview();
+    });
+
+    const endDrag = (e) => {
+        dragging = false;
+        try { posterAlignPreview.releasePointerCapture(e.pointerId); } catch (err) {}
+    };
+    posterAlignPreview.addEventListener('pointerup', endDrag);
+    posterAlignPreview.addEventListener('pointercancel', endDrag);
+    posterAlignPreview.addEventListener('pointerleave', () => { dragging = false; });
+}
+
+// Gera o CSS inline (posição + zoom) para exibir a capa de um vídeo já alinhada pelo admin
+function getPosterImageStyle(video) {
+    const posX = (video && video.imagePosX != null) ? video.imagePosX : 50;
+    const posY = (video && video.imagePosY != null) ? video.imagePosY : 50;
+    const zoom = (video && video.imageZoom != null) ? video.imageZoom : 100;
+    return `object-position: ${posX}% ${posY}%; transform: scale(${zoom / 100});`;
 }
 
 // Preencher o formulário administrativo com dados oficiais da API oEmbed
@@ -620,6 +745,12 @@ function setupHeroBanner() {
     heroTitle.textContent = featuredVideo.title;
     heroDescription.textContent = featuredVideo.description;
     heroBgImage.style.backgroundImage = `url('${featuredVideo.imageUrl}')`;
+    // Aplica o enquadramento (posição e zoom) definido no painel admin, mantendo o "cover" como base
+    const heroPosX = (featuredVideo.imagePosX != null) ? featuredVideo.imagePosX : 50;
+    const heroPosY = (featuredVideo.imagePosY != null) ? featuredVideo.imagePosY : 20;
+    const heroZoom = (featuredVideo.imageZoom != null) ? featuredVideo.imageZoom : 100;
+    heroBgImage.style.backgroundPosition = `${heroPosX}% ${heroPosY}%`;
+    heroBgImage.style.transform = `scale(${heroZoom / 100})`;
     
     // Porcentagem de match randômica persistente para o vídeo
     const matchVal = (100 - (featuredVideo.title.length % 10)).toString();
@@ -665,7 +796,7 @@ function renderCarouselCards(carouselElement, videos) {
 
         wrapper.innerHTML = `
             <div class="video-card">
-                <img src="${video.imageUrl}" alt="${video.title}" class="video-card-thumbnail" loading="lazy">
+                <img src="${video.imageUrl}" alt="${video.title}" class="video-card-thumbnail" loading="lazy" style="${getPosterImageStyle(video)}">
                 
                 <div class="video-card-mini-info">
                     <span class="video-card-mini-title">${video.title}</span>
@@ -831,7 +962,7 @@ function renderAdminList() {
         row.className = 'admin-video-row';
         row.innerHTML = `
             <div class="admin-video-row-left">
-                <img src="${video.imageUrl}" alt="Capa" class="admin-video-thumb">
+                <img src="${video.imageUrl}" alt="Capa" class="admin-video-thumb" style="${getPosterImageStyle(video)}">
                 <div class="admin-video-text">
                     <span class="admin-video-title-item">${video.title}</span>
                     <span class="admin-video-channel">${video.director} (${video.category})</span>
@@ -869,6 +1000,10 @@ window.prepareEditVideo = function(id) {
     document.getElementById('new-description').value = video.description;
     newImageUrl.value = video.imageUrl;
     imagePreview.src = video.imageUrl;
+    newImagePosX.value = (video.imagePosX != null) ? video.imagePosX : 50;
+    newImagePosY.value = (video.imagePosY != null) ? video.imagePosY : 50;
+    newImageZoom.value = (video.imageZoom != null) ? video.imageZoom : 100;
+    applyImageAlignToPreview();
     document.getElementById('new-featured').checked = video.featured || false;
 
     // Atualizar títulos do painel
@@ -904,6 +1039,10 @@ function resetForm() {
     addVideoForm.reset();
     editVideoIdInput.value = '';
     imagePreview.src = "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=600";
+    newImagePosX.value = 50;
+    newImagePosY.value = 50;
+    newImageZoom.value = 100;
+    applyImageAlignToPreview();
     formActionTitle.textContent = "Adicionar Novo Vídeo";
     btnCancelEdit.classList.add('hidden');
     document.getElementById('btn-save-video').innerHTML = `<i data-lucide="check"></i> Salvar Vídeo`;

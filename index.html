@@ -112,7 +112,7 @@
             </div>
         </section>
 
-        <section class="video-row-section" id="section-filmes">
+        <section class="video-row-section poster-grid-row" id="section-filmes">
             <h3 class="row-title">Filmes Imperdíveis</h3>
             <div class="row-carousel-container">
                 <button class="carousel-control prev" onclick="scrollCarousel('carousel-filmes', -1)">
@@ -127,7 +127,7 @@
             </div>
         </section>
 
-        <section class="video-row-section" id="section-series">
+        <section class="video-row-section poster-grid-row" id="section-series">
             <h3 class="row-title">Séries e Episódios</h3>
             <div class="row-carousel-container">
                 <button class="carousel-control prev" onclick="scrollCarousel('carousel-series', -1)">
@@ -142,7 +142,7 @@
             </div>
         </section>
 
-        <section class="video-row-section" id="section-documentarios">
+        <section class="video-row-section poster-grid-row" id="section-documentarios">
             <h3 class="row-title">Documentários Fascinantes</h3>
             <div class="row-carousel-container">
                 <button class="carousel-control prev" onclick="scrollCarousel('carousel-documentarios', -1)">
@@ -157,7 +157,7 @@
             </div>
         </section>
 
-        <section class="video-row-section" id="section-tutoriais">
+        <section class="video-row-section poster-grid-row" id="section-tutoriais">
             <h3 class="row-title">Tecnologia, Cursos e Tutoriais</h3>
             <div class="row-carousel-container">
                 <button class="carousel-control prev" onclick="scrollCarousel('carousel-tutoriais', -1)">
@@ -324,12 +324,34 @@
                             </div>
 
                             <div class="form-group span-full">
-                                <label>Imagem de Capa (Extraída automaticamente, mas você pode mudar o link)</label>
-                                <input type="url" id="new-image-url" class="form-control" placeholder="https://exemplo.com/imagem-de-capa.jpg">
-                                <div class="backdrop-preview-box">
-                                    <img id="image-preview" src="https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=600" alt="Preview da Capa">
-                                    <div class="preview-overlay">Preview da Capa</div>
+                                <label>Imagem de Capa (Extraída automaticamente, mas você pode mudar o link ou carregar um arquivo)</label>
+                                <div class="image-source-row">
+                                    <input type="url" id="new-image-url" class="form-control" placeholder="https://exemplo.com/imagem-de-capa.jpg">
+                                    <button type="button" id="btn-upload-image" class="btn-fetch-metadata" title="Carregar imagem do computador">
+                                        <i data-lucide="upload"></i>
+                                        <span>Carregar</span>
+                                    </button>
+                                    <input type="file" id="new-image-file" accept="image/*" style="display: none;">
                                 </div>
+                                <span class="input-hint">Cole um link de imagem, carregue um arquivo do seu computador, ou use a miniatura extraída do vídeo.</span>
+
+                                <div class="poster-align-wrapper">
+                                    <div class="poster-align-preview" id="poster-align-preview" title="Arraste para posicionar a capa">
+                                        <img id="image-preview" src="https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=600" alt="Preview da Capa" draggable="false">
+                                    </div>
+                                    <div class="poster-align-controls">
+                                        <label class="align-zoom-label">
+                                            <i data-lucide="zoom-in"></i>
+                                            <input type="range" id="new-image-zoom" min="100" max="220" value="100" step="1">
+                                        </label>
+                                        <button type="button" id="btn-reset-align" class="btn-reset-align" title="Restaurar enquadramento padrão">
+                                            <i data-lucide="rotate-ccw"></i> Redefinir enquadramento
+                                        </button>
+                                        <span class="align-hint">Arraste a capa dentro do quadro e use o zoom para ajustar o enquadramento.</span>
+                                    </div>
+                                </div>
+                                <input type="hidden" id="new-image-pos-x" value="50">
+                                <input type="hidden" id="new-image-pos-y" value="50">
                             </div>
                         </div>
 

@@ -214,6 +214,7 @@ body {
     height: 100%;
     background-size: cover;
     background-position: center 20%;
+    transform-origin: center center;
     transition: background-image 0.8s ease;
 }
 
@@ -482,7 +483,7 @@ body {
     background-color: rgba(0, 0, 0, 0.8);
 }
 
-/* Video Card Estilo Netflix Hover */
+/* Video Card Estilo Netflix (retangular 16:9) - usado na 1ª fileira (destaques) */
 .video-card-wrapper {
     flex: 0 0 calc(20% - 7px); /* 5 cards por linha */
     min-width: 200px;
@@ -492,7 +493,7 @@ body {
     cursor: pointer;
 }
 
-/* Responsividade de Linhas */
+/* Responsividade de Linhas do carrossel do topo */
 @media (max-width: 1200px) {
     .video-card-wrapper { flex: 0 0 calc(25% - 6px); } /* 4 cards */
 }
@@ -501,6 +502,52 @@ body {
 }
 @media (max-width: 600px) {
     .video-card-wrapper { flex: 0 0 calc(50% - 4px); } /* 2 cards */
+}
+
+/* ===================================================================
+   Fileiras em GRADE (capas de DVD), sem rolagem, sem linhas divisórias
+   Usado em todas as seções exceto a fileira de destaque do topo
+=================================================================== */
+.poster-grid-row .row-carousel-container {
+    margin: 0;
+}
+
+.poster-grid-row .carousel-control {
+    display: none;
+}
+
+.poster-grid-row .row-carousel {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px 12px;
+    overflow: visible;
+    padding: 15px 0 10px 0;
+}
+
+@media (min-width: 700px) {
+    .poster-grid-row .row-carousel {
+        grid-template-columns: repeat(5, 1fr);
+        gap: 18px 20px;
+    }
+}
+
+.poster-grid-row .video-card-wrapper {
+    flex: none;
+    width: 100%;
+    min-width: 0;
+    aspect-ratio: 2/3;
+}
+
+/* Efeito de hover mais discreto na grade, para não invadir as capas vizinhas */
+.poster-grid-row .video-card-wrapper:hover .video-card {
+    transform: scale(1.06);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.7);
+    z-index: 50;
+}
+
+.poster-grid-row .details-row-3,
+.poster-grid-row .details-genres {
+    display: none;
 }
 
 .video-card {
@@ -1056,6 +1103,96 @@ body {
 
 .required {
     color: var(--netflix-red);
+}
+
+/* Upload / Alinhamento da Capa no Painel Admin */
+.image-source-row {
+    display: flex;
+    gap: 10px;
+}
+
+.image-source-row .form-control {
+    flex: 1;
+}
+
+.poster-align-wrapper {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.poster-align-preview {
+    width: 130px;
+    aspect-ratio: 2/3;
+    background-color: #000000;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    position: relative;
+    cursor: grab;
+    flex-shrink: 0;
+    touch-action: none;
+    user-select: none;
+}
+
+.poster-align-preview:active {
+    cursor: grabbing;
+}
+
+.poster-align-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+    transform-origin: center center;
+}
+
+.poster-align-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    min-width: 180px;
+    padding-top: 4px;
+}
+
+.align-zoom-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-muted);
+}
+
+.align-zoom-label input[type="range"] {
+    flex: 1;
+    accent-color: var(--netflix-red);
+}
+
+.btn-reset-align {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    width: fit-content;
+    transition: all var(--transition-fast);
+}
+
+.btn-reset-align:hover {
+    border-color: var(--text-color);
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.align-hint {
+    font-size: 0.7rem;
+    color: var(--text-muted);
 }
 
 .backdrop-preview-box {

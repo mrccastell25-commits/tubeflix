@@ -1,5 +1,10 @@
 // TubeFlix - Aplicação JavaScript
 
+// Zoom padrão aplicado às capas (miniaturas horizontais do YouTube exibidas em pôsteres verticais).
+// Um valor abaixo de 100 evita ampliar demais a imagem para preencher o quadro vertical,
+// centralizando o recorte e preservando mais qualidade/nitidez da capa.
+const DEFAULT_POSTER_ZOOM = 85;
+
 // 1. Configuração do Firebase Realtime Database
 const firebaseConfig = {
     apiKey: "AIzaSyBn_IRWV1kVIWyJiJ7DUcuozUn3Se6JKvs",
@@ -42,7 +47,12 @@ let allVideos = [];
 let myFavoriteList = JSON.parse(localStorage.getItem('tubeflix_favorites')) || [];
 let activeCategoryFilter = 'todos';
 let currentSearchQuery = '';
-let activeYoutubePlayer = null;
+let activeYoutubePlayer = null; // Instância do YT.Player quando a API estiver pronta
+let pendingAutoplayVideoId = null; // Guarda o vídeo a carregar caso a API do YouTube ainda não tenha carregado
+let currentPlayingVideo = null; // Vídeo atualmente aberto no player (usado para calcular o próximo capítulo)
+let pendingNextEpisode = null; // Próximo capítulo aguardando confirmação/contagem regressiva
+let nextEpisodeCountdownInterval = null;
+let nextEpisodeSecondsLeft = 10;
 
 // Pool de nomes para gerador de elenco simulado
 const actorPool = [
@@ -80,6 +90,12 @@ const seriesEpisodesList = document.getElementById('series-episodes-list');
 const closePassModal = document.getElementById('close-pass-modal');
 const closeAdminModal = document.getElementById('close-admin-modal');
 const closePlayerBtn = document.getElementById('close-player-btn');
+const nextEpisodeOverlay = document.getElementById('next-episode-overlay');
+const nextEpisodeCountdownEl = document.getElementById('next-episode-countdown');
+const nextEpisodeThumbEl = document.getElementById('next-episode-thumb');
+const nextEpisodeTitleEl = document.getElementById('next-episode-title');
+const btnCancelNextEpisode = document.getElementById('btn-cancel-next-episode');
+const btnPlayNextEpisode = document.getElementById('btn-play-next-episode');
 const btnSubmitPass = document.getElementById('btn-submit-pass');
 const adminPassInput = document.getElementById('admin-pass-input');
 
@@ -230,6 +246,8 @@ function setupEventListeners() {
     closePassModal.addEventListener('click', () => modalPassword.classList.add('hidden'));
     closeAdminModal.addEventListener('click', () => modalAdmin.classList.add('hidden'));
     closePlayerBtn.addEventListener('click', closePlayerModal);
+    btnCancelNextEpisode.addEventListener('click', cancelNextEpisodeCountdown);
+    btnPlayNextEpisode.addEventListener('click', playPendingNextEpisode);
     closeSeriesEpisodesBtn.addEventListener('click', closeSeriesEpisodesModal);
     // Fecha ao clicar fora do card de episódios (na área escurecida)
     modalSeriesEpisodes.addEventListener('click', (e) => {
@@ -318,11 +336,11 @@ function setupEventListeners() {
     // Zoom da capa
     newImageZoom.addEventListener('input', applyImageAlignToPreview);
 
-    // Redefinir enquadramento (posição e zoom)
+    // Redefinir enquadramento (posição centralizada e zoom padrão, sem cortar demais a capa vertical)
     btnResetAlign.addEventListener('click', () => {
         newImagePosX.value = 50;
         newImagePosY.value = 50;
-        newImageZoom.value = 100;
+        newImageZoom.value = DEFAULT_POSTER_ZOOM;
         applyImageAlignToPreview();
     });
 
@@ -348,7 +366,7 @@ function setupEventListeners() {
             imageUrl: newImageUrl.value.trim() || `https://img.youtube.com/vi/${extractYouTubeId(newUrlInput.value.trim())}/maxresdefault.jpg`,
             imagePosX: parseFloat(newImagePosX.value) || 50,
             imagePosY: parseFloat(newImagePosY.value) || 50,
-            imageZoom: parseFloat(newImageZoom.value) || 100,
+            imageZoom: parseFloat(newImageZoom.value) || DEFAULT_POSTER_ZOOM,
             featured: document.getElementById('new-featured').checked,
             seriesName: (document.getElementById('new-category').value === 'series') ? newSeriesName.value.trim() : '',
             episodeOrder: (document.getElementById('new-category').value === 'series' && newEpisodeOrder.value !== '') ? parseFloat(newEpisodeOrder.value) : null,
@@ -616,7 +634,7 @@ function setupPosterDragAndDrop() {
 function getPosterImageStyle(video) {
     const posX = (video && video.imagePosX != null) ? video.imagePosX : 50;
     const posY = (video && video.imagePosY != null) ? video.imagePosY : 50;
-    const zoom = (video && video.imageZoom != null) ? video.imageZoom : 100;
+    const zoom = (video && video.imageZoom != null) ? video.imageZoom : DEFAULT_POSTER_ZOOM;
     return `object-position: ${posX}% ${posY}%; transform: scale(${zoom / 100});`;
 }
 
@@ -799,7 +817,10 @@ function filterAndRenderRows() {
         }
 
         // Filtro da barra lateral/superior (se categoria específica está ativa)
+        // A fileira "destaques/Populares" não é mais exibida na navegação normal — ela só aparece
+        // quando reaproveitada para mostrar "Minha Lista" (favoritos), tratado no bloco abaixo.
         const isSectionVisible = 
+            row.key !== 'destaques' &&
             (activeFilter === 'todos' || activeFilter === row.key) && 
             rowVideos.length > 0;
 
@@ -1069,12 +1090,126 @@ function loadYoutubeIFrameAPI() {
 // Função global chamada pelo YouTube Iframe API quando estiver pronta
 window.onYouTubeIframeAPIReady = function() {
     console.log("YouTube Player API inicializada com sucesso.");
+    // Se o usuário já tinha clicado em um vídeo antes da API terminar de carregar, cria o player agora
+    if (pendingAutoplayVideoId) {
+        const videoId = pendingAutoplayVideoId;
+        pendingAutoplayVideoId = null;
+        createOrLoadYoutubePlayer(videoId);
+    }
 };
+
+// Cria o player do YouTube (via API oficial, necessária para detectar o fim do vídeo) ou reaproveita
+// o player já existente, apenas trocando o vídeo carregado (evita recriar o iframe a cada clique)
+function createOrLoadYoutubePlayer(videoId) {
+    if (typeof YT === 'undefined' || !YT.Player) {
+        // A API do YouTube ainda não carregou; guarda o vídeo para tocar assim que ela ficar pronta
+        pendingAutoplayVideoId = videoId;
+        return;
+    }
+
+    if (activeYoutubePlayer && typeof activeYoutubePlayer.loadVideoById === 'function') {
+        activeYoutubePlayer.loadVideoById(videoId);
+        return;
+    }
+
+    activeYoutubePlayer = new YT.Player('youtube-player-placeholder', {
+        videoId: videoId,
+        playerVars: { autoplay: 1, rel: 0 },
+        events: {
+            onStateChange: handlePlayerStateChange
+        }
+    });
+}
+
+// Detecta o fim da reprodução para oferecer o próximo capítulo automaticamente (apenas séries)
+function handlePlayerStateChange(event) {
+    if (typeof YT === 'undefined') return;
+
+    if (event.data === YT.PlayerState.ENDED) {
+        const next = findNextEpisode(currentPlayingVideo);
+        if (next) {
+            startNextEpisodeCountdown(next);
+        }
+    } else if (event.data === YT.PlayerState.PLAYING) {
+        // Se o vídeo voltou a tocar (ex: usuário deu replay), cancela qualquer contagem pendente
+        cancelNextEpisodeCountdown();
+    }
+}
+
+// Encontra o próximo capítulo da mesma série (pela ordem definida no painel admin), sem misturar séries diferentes
+function findNextEpisode(video) {
+    if (!video || video.category !== 'series' || !video.seriesName || !video.seriesName.trim()) {
+        return null;
+    }
+
+    const normalizedName = video.seriesName.trim().toLowerCase();
+    const siblings = allVideos.filter(v =>
+        v.category === 'series' &&
+        v.seriesName &&
+        v.seriesName.trim().toLowerCase() === normalizedName
+    );
+
+    if (siblings.length < 2) return null;
+
+    siblings.sort((a, b) => {
+        const orderA = (a.episodeOrder != null) ? a.episodeOrder : Infinity;
+        const orderB = (b.episodeOrder != null) ? b.episodeOrder : Infinity;
+        if (orderA !== orderB) return orderA - orderB;
+        return (a.createdAt || 0) - (b.createdAt || 0);
+    });
+
+    const currentIndex = siblings.findIndex(v => v.id === video.id);
+    if (currentIndex === -1 || currentIndex === siblings.length - 1) return null; // é o último capítulo
+
+    return siblings[currentIndex + 1];
+}
+
+// Mostra o aviso de "Próximo capítulo" com contagem regressiva de 10 segundos
+function startNextEpisodeCountdown(next) {
+    pendingNextEpisode = next;
+    nextEpisodeSecondsLeft = 10;
+
+    nextEpisodeTitleEl.textContent = next.title;
+    nextEpisodeThumbEl.src = next.imageUrl;
+    nextEpisodeThumbEl.setAttribute('style', getPosterImageStyle(next));
+    nextEpisodeCountdownEl.textContent = nextEpisodeSecondsLeft;
+    nextEpisodeOverlay.classList.remove('hidden');
+
+    if (nextEpisodeCountdownInterval) clearInterval(nextEpisodeCountdownInterval);
+    nextEpisodeCountdownInterval = setInterval(() => {
+        nextEpisodeSecondsLeft -= 1;
+        nextEpisodeCountdownEl.textContent = Math.max(nextEpisodeSecondsLeft, 0);
+        if (nextEpisodeSecondsLeft <= 0) {
+            playPendingNextEpisode();
+        }
+    }, 1000);
+}
+
+// Cancela a contagem regressiva (usuário clicou em "Cancelar", fechou o player, ou trocou de vídeo manualmente)
+function cancelNextEpisodeCountdown() {
+    if (nextEpisodeCountdownInterval) {
+        clearInterval(nextEpisodeCountdownInterval);
+        nextEpisodeCountdownInterval = null;
+    }
+    pendingNextEpisode = null;
+    nextEpisodeOverlay.classList.add('hidden');
+}
+
+// Inicia o próximo capítulo (chamado ao fim da contagem ou ao clicar em "Assistir agora")
+function playPendingNextEpisode() {
+    const next = pendingNextEpisode;
+    cancelNextEpisodeCountdown();
+    if (next) openPlayerModal(next);
+}
 
 // Abrir Vídeo no Modal
 function openPlayerModal(video) {
     playerModal.classList.remove('hidden');
     document.body.style.overflow = 'hidden'; // Travar rolagem do fundo
+
+    // Cancela qualquer contagem de "próximo capítulo" pendente do vídeo anterior
+    cancelNextEpisodeCountdown();
+    currentPlayingVideo = video;
 
     // Configura as informações do modal
     document.getElementById('modal-video-title').textContent = video.title;
@@ -1092,27 +1227,22 @@ function openPlayerModal(video) {
     const matchVal = (100 - (video.title.length % 10)).toString();
     document.getElementById('modal-video-match').textContent = `${matchVal}% Match`;
 
-    // Embed robusto via Iframe com autoplay (Funciona em file:// e http://)
-    const wrapper = document.querySelector('.video-iframe-wrapper');
-    wrapper.innerHTML = `
-        <iframe 
-            src="https://www.youtube.com/embed/${video.videoId}?autoplay=1&rel=0" 
-            title="YouTube video player" 
-            frameborder="0" 
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-            referrerpolicy="strict-origin-when-cross-origin"
-            allowfullscreen>
-        </iframe>
-    `;
+    // Usa a API oficial do YouTube (necessária para detectar o fim do vídeo e avançar o próximo capítulo)
+    createOrLoadYoutubePlayer(video.videoId);
 }
 
 function closePlayerModal() {
     playerModal.classList.add('hidden');
     document.body.style.overflow = 'auto'; // Destravar rolagem do fundo
 
-    // Limpa o Iframe para interromper a reprodução de vídeo/áudio instantaneamente
-    const wrapper = document.querySelector('.video-iframe-wrapper');
-    wrapper.innerHTML = '<div id="youtube-player-placeholder"></div>';
+    // Cancela qualquer contagem de próximo capítulo em andamento
+    cancelNextEpisodeCountdown();
+    currentPlayingVideo = null;
+
+    // Interrompe a reprodução/áudio instantaneamente sem destruir o player (reaproveitado na próxima abertura)
+    if (activeYoutubePlayer && typeof activeYoutubePlayer.stopVideo === 'function') {
+        activeYoutubePlayer.stopVideo();
+    }
 }
 
 // Abre a lista de capítulos de uma série, para o usuário escolher qual episódio assistir
@@ -1216,7 +1346,7 @@ window.prepareEditVideo = function(id) {
     imagePreview.src = video.imageUrl;
     newImagePosX.value = (video.imagePosX != null) ? video.imagePosX : 50;
     newImagePosY.value = (video.imagePosY != null) ? video.imagePosY : 50;
-    newImageZoom.value = (video.imageZoom != null) ? video.imageZoom : 100;
+    newImageZoom.value = (video.imageZoom != null) ? video.imageZoom : DEFAULT_POSTER_ZOOM;
     applyImageAlignToPreview();
     document.getElementById('new-featured').checked = video.featured || false;
     newSeriesName.value = video.seriesName || "";
@@ -1258,7 +1388,7 @@ function resetForm() {
     imagePreview.src = "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=600";
     newImagePosX.value = 50;
     newImagePosY.value = 50;
-    newImageZoom.value = 100;
+    newImageZoom.value = DEFAULT_POSTER_ZOOM;
     applyImageAlignToPreview();
     toggleSeriesOrderFields();
     formActionTitle.textContent = "Adicionar Novo Vídeo";

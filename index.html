@@ -185,8 +185,26 @@
             </button>
             
             <div class="video-iframe-wrapper">
-                <!-- Iframe do YouTube inserido dinamicamente -->
+                <!-- Player do YouTube (IFrame API) inserido dinamicamente -->
                 <div id="youtube-player-placeholder"></div>
+
+                <!-- Aviso de "Próximo Episódio" com contagem regressiva (apenas para séries) -->
+                <div class="next-episode-overlay hidden" id="next-episode-overlay">
+                    <div class="next-episode-card">
+                        <span class="next-episode-label">Próximo capítulo em <span id="next-episode-countdown">10</span>s</span>
+                        <div class="next-episode-info">
+                            <img id="next-episode-thumb" src="" alt="Próximo capítulo" class="next-episode-thumb">
+                            <span class="next-episode-title" id="next-episode-title">Título do Próximo Capítulo</span>
+                        </div>
+                        <div class="next-episode-actions">
+                            <button type="button" class="btn-cancel-next" id="btn-cancel-next-episode">Cancelar</button>
+                            <button type="button" class="btn-play-next" id="btn-play-next-episode">
+                                <i data-lucide="play" style="width: 13px; height: 13px; fill: currentColor;"></i>
+                                Assistir agora
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="player-info-container">
@@ -376,13 +394,14 @@
                                     </div>
                                     <div class="poster-align-controls">
                                         <label class="align-zoom-label">
+                                            <i data-lucide="zoom-out"></i>
+                                            <input type="range" id="new-image-zoom" min="60" max="220" value="85" step="1">
                                             <i data-lucide="zoom-in"></i>
-                                            <input type="range" id="new-image-zoom" min="100" max="220" value="100" step="1">
                                         </label>
                                         <button type="button" id="btn-reset-align" class="btn-reset-align" title="Restaurar enquadramento padrão">
                                             <i data-lucide="rotate-ccw"></i> Redefinir enquadramento
                                         </button>
-                                        <span class="align-hint">Arraste a capa dentro do quadro e use o zoom para ajustar o enquadramento.</span>
+                                        <span class="align-hint">Arraste a capa dentro do quadro para centralizar e use o zoom para ajustar o enquadramento. Como a capa agora é vertical, reduzir um pouco o zoom evita cortar demais a imagem e preserva mais qualidade.</span>
                                     </div>
                                 </div>
                                 <input type="hidden" id="new-image-pos-x" value="50">

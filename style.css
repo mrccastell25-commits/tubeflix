@@ -930,6 +930,163 @@ body {
     color: #e5e5e5;
 }
 
+/* Modal de Lista de Episódios da Série */
+.series-episodes-container {
+    width: 90%;
+    max-width: 700px;
+    max-height: 85vh;
+    background-color: var(--netflix-dark-gray);
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 15px 50px rgba(0,0,0,0.9);
+    border: 1px solid var(--border-color);
+    transform: scale(0.9);
+    animation: zoomIn var(--transition-smooth) forwards;
+    display: flex;
+    flex-direction: column;
+}
+
+.series-episodes-header {
+    padding: 30px 30px 16px 30px;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.series-episodes-eyebrow {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--netflix-red);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+
+.series-episodes-header h2 {
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0 0 4px 0;
+    padding-right: 40px;
+}
+
+.series-episodes-subtitle {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.series-episodes-list {
+    overflow-y: auto;
+    padding: 10px 16px 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.series-episode-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+}
+
+.series-episode-item:hover {
+    background-color: rgba(255,255,255,0.08);
+}
+
+.series-episode-number {
+    width: 28px;
+    flex-shrink: 0;
+    text-align: center;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.series-episode-thumb {
+    width: 50px;
+    aspect-ratio: 2/3;
+    object-fit: contain;
+    background-color: #000;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.series-episode-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    flex-grow: 1;
+}
+
+.series-episode-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.series-episode-meta {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.series-episode-play {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background-color: rgba(255,255,255,0.08);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all var(--transition-fast);
+}
+
+.series-episode-item:hover .series-episode-play {
+    background-color: #ffffff;
+    color: #000000;
+}
+
+/* Selo de "N capítulos" no card da fileira de Séries */
+.series-count-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background-color: rgba(20, 20, 20, 0.85);
+    border: 1px solid rgba(255,255,255,0.2);
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #fff;
+    z-index: 5;
+    pointer-events: none;
+}
+
+@media (max-width: 600px) {
+    .series-episodes-header {
+        padding: 24px 20px 14px 20px;
+    }
+    .series-episode-thumb {
+        width: 40px;
+    }
+    .series-episode-title {
+        font-size: 0.85rem;
+    }
+}
+
 .player-info-right {
     display: flex;
     flex-direction: column;

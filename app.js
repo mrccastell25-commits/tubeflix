@@ -72,6 +72,11 @@ const btnAddInitial = document.getElementById('btn-add-initial');
 const modalPassword = document.getElementById('modal-password');
 const modalAdmin = document.getElementById('modal-admin');
 const playerModal = document.getElementById('player-modal');
+const modalSeriesEpisodes = document.getElementById('modal-series-episodes');
+const closeSeriesEpisodesBtn = document.getElementById('close-series-episodes-btn');
+const seriesEpisodesTitle = document.getElementById('series-episodes-title');
+const seriesEpisodesSubtitle = document.getElementById('series-episodes-subtitle');
+const seriesEpisodesList = document.getElementById('series-episodes-list');
 const closePassModal = document.getElementById('close-pass-modal');
 const closeAdminModal = document.getElementById('close-admin-modal');
 const closePlayerBtn = document.getElementById('close-player-btn');
@@ -225,6 +230,11 @@ function setupEventListeners() {
     closePassModal.addEventListener('click', () => modalPassword.classList.add('hidden'));
     closeAdminModal.addEventListener('click', () => modalAdmin.classList.add('hidden'));
     closePlayerBtn.addEventListener('click', closePlayerModal);
+    closeSeriesEpisodesBtn.addEventListener('click', closeSeriesEpisodesModal);
+    // Fecha ao clicar fora do card de episódios (na área escurecida)
+    modalSeriesEpisodes.addEventListener('click', (e) => {
+        if (e.target === modalSeriesEpisodes) closeSeriesEpisodesModal();
+    });
 
     // Validação de senha
     btnSubmitPass.addEventListener('click', verifyAdminPassword);
@@ -858,7 +868,9 @@ function groupAndSortSeriesEpisodes(videos) {
         return maxB - maxA;
     });
 
-    return groupList.flat();
+    // Retorna apenas UM card por série (o primeiro capítulo), com a lista completa de episódios anexada.
+    // Isso evita poluir a fileira com várias capas repetidas da mesma série.
+    return groupList.map(group => ({ ...group[0], episodes: group }));
 }
 
 // Configurar o Banner de Destaque
@@ -932,14 +944,25 @@ function renderCarouselCards(carouselElement, videos) {
         // Match rating
         const matchVal = (100 - (video.title.length % 10)).toString();
 
+        // Cards de série com mais de 1 capítulo mostram apenas 1 card (o primeiro capítulo)
+        // e, ao clicar, abrem a lista de episódios em vez de tocar direto
+        const isSeriesGroup = Array.isArray(video.episodes) && video.episodes.length > 1;
+        const cardTitle = isSeriesGroup ? (video.seriesName || video.title) : video.title;
+
         wrapper.innerHTML = `
             <div class="video-card">
-                <img src="${video.imageUrl}" alt="${video.title}" class="video-card-thumbnail" loading="lazy" style="${getPosterImageStyle(video)}">
+                <img src="${video.imageUrl}" alt="${cardTitle}" class="video-card-thumbnail" loading="lazy" style="${getPosterImageStyle(video)}">
                 
+                ${isSeriesGroup ? `
+                <div class="series-count-badge">
+                    <i data-lucide="layers" style="width: 11px; height: 11px;"></i>
+                    <span>${video.episodes.length} capítulos</span>
+                </div>` : ''}
+
                 <div class="video-card-mini-info">
-                    <span class="video-card-mini-title">${video.title}</span>
+                    <span class="video-card-mini-title">${cardTitle}</span>
                     <div class="card-play-icon">
-                        <i data-lucide="play" style="width: 12px; height: 12px; fill: currentColor;"></i>
+                        <i data-lucide="${isSeriesGroup ? 'list' : 'play'}" style="width: 12px; height: 12px; fill: ${isSeriesGroup ? 'none' : 'currentColor'};"></i>
                     </div>
                 </div>
 
@@ -947,8 +970,8 @@ function renderCarouselCards(carouselElement, videos) {
                 <div class="video-card-details">
                     <div class="details-row-1">
                         <div class="details-actions-left">
-                            <button class="btn-card-circle btn-play-card" title="Assistir Agora">
-                                <i data-lucide="play" style="width: 12px; height: 12px; fill: currentColor;"></i>
+                            <button class="btn-card-circle btn-play-card" title="${isSeriesGroup ? 'Ver capítulos' : 'Assistir Agora'}">
+                                <i data-lucide="${isSeriesGroup ? 'list' : 'play'}" style="width: 12px; height: 12px; fill: ${isSeriesGroup ? 'none' : 'currentColor'};"></i>
                             </button>
                             <button class="btn-card-circle btn-favorite-card" title="${favoriteTitle}">
                                 <i data-lucide="${favoriteIcon}" style="width: 12px; height: 12px;"></i>
@@ -962,7 +985,7 @@ function renderCarouselCards(carouselElement, videos) {
                     <div class="details-row-2">
                         <span class="match-score">${matchVal}% Match</span>
                         <span class="age-rating rating-${video.rating.toLowerCase()}">${video.rating === "L" ? "L" : video.rating + "+"}</span>
-                        <span class="duration">${video.duration}</span>
+                        <span class="duration">${isSeriesGroup ? video.episodes.length + ' episódios' : video.duration}</span>
                     </div>
 
                     <div class="details-row-3">
@@ -978,11 +1001,19 @@ function renderCarouselCards(carouselElement, videos) {
         `;
 
         // Eventos do Card
-        // Abrir Player ao clicar no card ou no botão play do hover
-        wrapper.querySelector('.video-card-thumbnail').addEventListener('click', () => openPlayerModal(video));
+        // Séries com mais de 1 capítulo abrem a lista de episódios; os demais tocam direto o vídeo
+        const handlePrimaryAction = () => {
+            if (isSeriesGroup) {
+                openSeriesEpisodesModal(video.episodes, video);
+            } else {
+                openPlayerModal(video);
+            }
+        };
+
+        wrapper.querySelector('.video-card-thumbnail').addEventListener('click', handlePrimaryAction);
         wrapper.querySelector('.btn-play-card').addEventListener('click', (e) => {
             e.stopPropagation();
-            openPlayerModal(video);
+            handlePrimaryAction();
         });
 
         // Adicionar / Remover Favoritos
@@ -991,10 +1022,14 @@ function renderCarouselCards(carouselElement, videos) {
             toggleFavorite(video.id);
         });
 
-        // Abrir Modal de Informações Detalhadas
+        // Abrir Modal de Informações Detalhadas (para séries, mostra a lista de episódios também)
         wrapper.querySelector('.btn-info-card').addEventListener('click', (e) => {
             e.stopPropagation();
-            openVideoDetails(video);
+            if (isSeriesGroup) {
+                openSeriesEpisodesModal(video.episodes, video);
+            } else {
+                openVideoDetails(video);
+            }
         });
 
         carouselElement.appendChild(wrapper);
@@ -1078,6 +1113,47 @@ function closePlayerModal() {
     // Limpa o Iframe para interromper a reprodução de vídeo/áudio instantaneamente
     const wrapper = document.querySelector('.video-iframe-wrapper');
     wrapper.innerHTML = '<div id="youtube-player-placeholder"></div>';
+}
+
+// Abre a lista de capítulos de uma série, para o usuário escolher qual episódio assistir
+// (evita poluir a fileira de séries com uma capa repetida para cada capítulo)
+function openSeriesEpisodesModal(episodes, representative) {
+    modalSeriesEpisodes.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+
+    seriesEpisodesTitle.textContent = representative.seriesName || representative.title;
+    seriesEpisodesSubtitle.textContent = `${episodes.length} capítulo${episodes.length > 1 ? 's' : ''}`;
+
+    seriesEpisodesList.innerHTML = '';
+    episodes.forEach((episode, index) => {
+        const orderLabel = (episode.episodeOrder != null) ? episode.episodeOrder : (index + 1);
+
+        const item = document.createElement('div');
+        item.className = 'series-episode-item';
+        item.innerHTML = `
+            <span class="series-episode-number">${orderLabel}</span>
+            <img src="${episode.imageUrl}" alt="${episode.title}" class="series-episode-thumb" style="${getPosterImageStyle(episode)}">
+            <div class="series-episode-info">
+                <span class="series-episode-title">${episode.title}</span>
+                <span class="series-episode-meta">${episode.duration || ''}</span>
+            </div>
+            <div class="series-episode-play">
+                <i data-lucide="play" style="width: 14px; height: 14px; fill: currentColor;"></i>
+            </div>
+        `;
+        item.addEventListener('click', () => {
+            closeSeriesEpisodesModal();
+            openPlayerModal(episode);
+        });
+        seriesEpisodesList.appendChild(item);
+    });
+
+    lucide.createIcons();
+}
+
+function closeSeriesEpisodesModal() {
+    modalSeriesEpisodes.classList.add('hidden');
+    document.body.style.overflow = 'auto';
 }
 
 // Mostrar mais informações do vídeo no modal do player

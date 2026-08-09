@@ -221,6 +221,23 @@
         </div>
     </div>
 
+    <!-- Modal de Lista de Episódios da Série -->
+    <div id="modal-series-episodes" class="modal-overlay hidden">
+        <div class="series-episodes-container">
+            <button class="btn-close-player" id="close-series-episodes-btn">
+                <i data-lucide="x"></i>
+            </button>
+            <div class="series-episodes-header">
+                <span class="series-episodes-eyebrow">Série</span>
+                <h2 id="series-episodes-title">Nome da Série</h2>
+                <span class="series-episodes-subtitle" id="series-episodes-subtitle">0 capítulos</span>
+            </div>
+            <div class="series-episodes-list" id="series-episodes-list">
+                <!-- Episódios inseridos dinamicamente via JS -->
+            </div>
+        </div>
+    </div>
+
     <!-- Modal de Senha Administrativa -->
     <div id="modal-password" class="modal-overlay hidden">
         <div class="auth-modal-card">

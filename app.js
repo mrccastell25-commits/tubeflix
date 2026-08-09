@@ -182,13 +182,10 @@ function setupEventListeners() {
             // Fecha o menu mobile, se estiver aberto
             closeMobileNav();
 
-            // Rolar suavemente até o início das fileiras
-            window.scrollTo({
-                top: document.querySelector('.main-container').offsetTop - 100,
-                behavior: 'smooth'
-            });
-
             filterAndRenderRows();
+
+            // Rolar suavemente até a fileira da categoria escolhida
+            scrollToActiveCategory();
         });
     });
 
@@ -414,6 +411,34 @@ function setupEventListeners() {
     btnExportJson.addEventListener('click', exportLibraryToJson);
     btnImportJsonTrigger.addEventListener('click', () => importJsonFile.click());
     importJsonFile.addEventListener('change', importLibraryFromJson);
+}
+
+// Rola a página até a fileira correspondente à categoria selecionada no menu.
+// "Início" vai para o topo do conteúdo; "Minha Lista" usa a fileira de destaques (reaproveitada para favoritos).
+function scrollToActiveCategory() {
+    const navbarHeight = 90; // compensa a navbar fixa no topo
+
+    let targetSection = null;
+
+    if (activeCategoryFilter === 'todos') {
+        targetSection = document.querySelector('.main-container');
+    } else if (activeCategoryFilter === 'favoritos') {
+        targetSection = document.getElementById('section-destaques');
+    } else {
+        targetSection = document.getElementById('section-' + activeCategoryFilter);
+    }
+
+    // Se a seção não existe ou está oculta (sem vídeos naquela categoria), rola para o início do conteúdo
+    if (!targetSection || targetSection.classList.contains('hidden')) {
+        targetSection = document.querySelector('.main-container');
+    }
+
+    if (!targetSection) return;
+
+    window.scrollTo({
+        top: targetSection.offsetTop - navbarHeight,
+        behavior: 'smooth'
+    });
 }
 
 // Fecha o menu de navegação mobile (usado ao selecionar um filtro ou clicar fora)
@@ -875,11 +900,13 @@ function setupHeroBanner() {
     heroRating.textContent = featuredVideo.rating === "L" ? "L" : `${featuredVideo.rating}+`;
 
     // Eventos dos botões do Hero
-    // Limpar listeners antigos
-    const newPlayBtn = heroPlayBtn.cloneNode(true);
-    const newInfoBtn = heroInfoBtn.cloneNode(true);
-    heroPlayBtn.parentNode.replaceChild(newPlayBtn, heroPlayBtn);
-    heroInfoBtn.parentNode.replaceChild(newInfoBtn, heroInfoBtn);
+    // Limpar listeners antigos (busca os elementos atuais no DOM, pois podem já ter sido substituídos em uma chamada anterior)
+    const currentPlayBtn = document.getElementById('hero-play-btn');
+    const currentInfoBtn = document.getElementById('hero-info-btn');
+    const newPlayBtn = currentPlayBtn.cloneNode(true);
+    const newInfoBtn = currentInfoBtn.cloneNode(true);
+    currentPlayBtn.parentNode.replaceChild(newPlayBtn, currentPlayBtn);
+    currentInfoBtn.parentNode.replaceChild(newInfoBtn, currentInfoBtn);
 
     document.getElementById('hero-play-btn').addEventListener('click', () => {
         openPlayerModal(featuredVideo);

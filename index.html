@@ -56,35 +56,16 @@
     </nav>
     <div class="nav-mobile-backdrop" id="nav-mobile-backdrop"></div>
 
-    <!-- Banner Principal / Hero Destaque -->
+    <!-- Banner Principal Estático (Locadora) -->
     <header class="hero-banner" id="hero-banner">
-        <div class="hero-background" id="hero-bg-image"></div>
-        <div class="hero-overlay"></div>
-        <div class="hero-content">
-            <span class="hero-tagline"><i data-lucide="award"></i> EM DESTAQUE HOJE</span>
-            <h2 class="hero-title" id="hero-title">Título do Vídeo em Destaque</h2>
-            <div class="hero-meta">
-                <span class="match-score" id="hero-match">98% Match</span>
-                <span class="release-year" id="hero-year">2026</span>
-                <span class="age-rating rating-16" id="hero-rating">16+</span>
-                <span class="duration" id="hero-duration">2h 15m</span>
-            </div>
-            <p class="hero-description" id="hero-description">
-                Esta é uma descrição emocionante de exemplo sobre o vídeo que está em destaque. 
-                Adicione seus próprios vídeos do YouTube e o sistema escolherá automaticamente um destaque premium para a capa.
-            </p>
-            <div class="hero-actions">
-                <button class="btn-play-hero" id="hero-play-btn">
-                    <i data-lucide="play" class="fill-current"></i>
-                    <span>Assistir</span>
-                </button>
-                <button class="btn-info-hero" id="hero-info-btn">
-                    <i data-lucide="info"></i>
-                    <span>Mais Informações</span>
-                </button>
-            </div>
-        </div>
+        <img src="assets/hero-locadora.jpg" alt="TubeFlix - Explorar Locadora" class="hero-static-image">
         <div class="hero-gradient-bottom"></div>
+        <div class="hero-cta-wrapper">
+            <button class="btn-explore-hero" id="btn-explore-hero">
+                <i data-lucide="chevron-down"></i>
+                <span>Explorar Catálogo</span>
+            </button>
+        </div>
     </header>
 
     <!-- Conteúdo Principal com Fileiras de Categorias -->
@@ -409,14 +390,6 @@
                             </div>
                         </div>
 
-                        <!-- Controles de Destaque -->
-                        <div class="admin-checkbox-group">
-                            <div class="checkbox-item">
-                                <input type="checkbox" id="new-featured" name="featured">
-                                <label for="new-featured">Tornar este vídeo o Destaque Principal do Banner</label>
-                            </div>
-                        </div>
-
                         <div class="form-actions-buttons">
                             <button type="submit" id="btn-save-video" class="btn-submit-action">
                                 <i data-lucide="check"></i> Salvar Vídeo
@@ -444,6 +417,17 @@
                             </button>
                             <input type="file" id="import-json-file" accept=".json" style="display: none;">
                         </div>
+                    </div>
+
+                    <div class="admin-search-row">
+                        <div class="admin-search-box">
+                            <i data-lucide="search"></i>
+                            <input type="text" id="admin-search-input" placeholder="Pesquisar por título, canal, série ou categoria...">
+                            <button type="button" id="btn-clear-admin-search" class="btn-clear-admin-search hidden" title="Limpar pesquisa">
+                                <i data-lucide="x"></i>
+                            </button>
+                        </div>
+                        <span class="admin-search-count" id="admin-search-count"></span>
                     </div>
 
                     <div class="admin-videos-list" id="admin-videos-container">

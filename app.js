@@ -47,6 +47,7 @@ let allVideos = [];
 let myFavoriteList = JSON.parse(localStorage.getItem('tubeflix_favorites')) || [];
 let activeCategoryFilter = 'todos';
 let currentSearchQuery = '';
+let adminSearchQuery = ''; // Pesquisa dentro do painel administrativo, para localizar um vídeo a editar
 let activeYoutubePlayer = null; // Instância do YT.Player quando a API estiver pronta
 let pendingAutoplayVideoId = null; // Guarda o vídeo a carregar caso a API do YouTube ainda não tenha carregado
 let currentPlayingVideo = null; // Vídeo atualmente aberto no player (usado para calcular o próximo capítulo)
@@ -121,16 +122,13 @@ const seriesOrderFields = document.getElementById('series-order-fields');
 const newSeriesName = document.getElementById('new-series-name');
 const newEpisodeOrder = document.getElementById('new-episode-order');
 
-// Destaque (Hero)
-const heroTitle = document.getElementById('hero-title');
-const heroDescription = document.getElementById('hero-description');
-const heroBgImage = document.getElementById('hero-bg-image');
-const heroMatch = document.getElementById('hero-match');
-const heroYear = document.getElementById('hero-year');
-const heroRating = document.getElementById('hero-rating');
-const heroDuration = document.getElementById('hero-duration');
-const heroPlayBtn = document.getElementById('hero-play-btn');
-const heroInfoBtn = document.getElementById('hero-info-btn');
+// Banner Principal Estático
+const btnExploreHero = document.getElementById('btn-explore-hero');
+
+// Pesquisa de vídeos no painel admin
+const adminSearchInput = document.getElementById('admin-search-input');
+const btnClearAdminSearch = document.getElementById('btn-clear-admin-search');
+const adminSearchCount = document.getElementById('admin-search-count');
 
 // Backups e Outros
 const btnExportJson = document.getElementById('btn-export-json');
@@ -188,6 +186,31 @@ function setupEventListeners() {
         currentSearchQuery = e.target.value.toLowerCase().trim();
         filterAndRenderRows();
     });
+
+    // Botão do banner principal estático: rola até o catálogo de vídeos
+    if (btnExploreHero) {
+        btnExploreHero.addEventListener('click', () => {
+            scrollToActiveCategory();
+        });
+    }
+
+    // Pesquisa de vídeos dentro do painel administrativo (para localizar rapidamente um vídeo a editar)
+    if (adminSearchInput) {
+        adminSearchInput.addEventListener('input', (e) => {
+            adminSearchQuery = e.target.value.toLowerCase().trim();
+            btnClearAdminSearch.classList.toggle('hidden', adminSearchQuery === '');
+            renderAdminList();
+        });
+    }
+    if (btnClearAdminSearch) {
+        btnClearAdminSearch.addEventListener('click', () => {
+            adminSearchQuery = '';
+            adminSearchInput.value = '';
+            btnClearAdminSearch.classList.add('hidden');
+            renderAdminList();
+            adminSearchInput.focus();
+        });
+    }
 
     // Filtros de Categorias no Topo
     const navLinks = document.querySelectorAll('.nav-links li');
@@ -367,7 +390,6 @@ function setupEventListeners() {
             imagePosX: parseFloat(newImagePosX.value) || 50,
             imagePosY: parseFloat(newImagePosY.value) || 50,
             imageZoom: parseFloat(newImageZoom.value) || DEFAULT_POSTER_ZOOM,
-            featured: document.getElementById('new-featured').checked,
             seriesName: (document.getElementById('new-category').value === 'series') ? newSeriesName.value.trim() : '',
             episodeOrder: (document.getElementById('new-category').value === 'series' && newEpisodeOrder.value !== '') ? parseFloat(newEpisodeOrder.value) : null,
             createdAt: new Date().getTime()
@@ -784,7 +806,7 @@ function filterAndRenderRows() {
     }
 
     // Configurar Banner de Destaque (Hero Banner)
-    setupHeroBanner();
+    // (Banner Principal agora é estático — não depende mais de um vídeo em destaque)
 
     // Se houver busca ou filtro de gênero ativado, o comportamento muda (mostra grid ou oculta fileiras irrelevantes)
     const isSearching = currentSearchQuery !== '';
@@ -895,60 +917,8 @@ function groupAndSortSeriesEpisodes(videos) {
 }
 
 // Configurar o Banner de Destaque
-function setupHeroBanner() {
-    let featuredVideo = allVideos.find(v => v.featured);
-    
-    // Se não houver vídeo explicitamente marcado como destaque, escolhe o primeiro da lista
-    if (!featuredVideo && allVideos.length > 0) {
-        featuredVideo = allVideos[0];
-    }
-
-    if (!featuredVideo) {
-        document.getElementById('hero-banner').classList.add('hidden');
-        return;
-    }
-
-    document.getElementById('hero-banner').classList.remove('hidden');
-    
-    // Metadados do Hero
-    heroTitle.textContent = featuredVideo.title;
-    heroDescription.textContent = featuredVideo.description;
-    heroBgImage.style.backgroundImage = `url('${featuredVideo.imageUrl}')`;
-    // Aplica o enquadramento (posição e zoom) definido no painel admin, mantendo o "cover" como base
-    const heroPosX = (featuredVideo.imagePosX != null) ? featuredVideo.imagePosX : 50;
-    const heroPosY = (featuredVideo.imagePosY != null) ? featuredVideo.imagePosY : 20;
-    const heroZoom = (featuredVideo.imageZoom != null) ? featuredVideo.imageZoom : 100;
-    heroBgImage.style.backgroundPosition = `${heroPosX}% ${heroPosY}%`;
-    heroBgImage.style.transform = `scale(${heroZoom / 100})`;
-    
-    // Porcentagem de match randômica persistente para o vídeo
-    const matchVal = (100 - (featuredVideo.title.length % 10)).toString();
-    heroMatch.textContent = `${matchVal}% Match`;
-    
-    heroYear.textContent = featuredVideo.year || "2026";
-    heroDuration.textContent = featuredVideo.duration;
-
-    // Configura classe da classificação indicativa do Hero
-    heroRating.className = `age-rating rating-${featuredVideo.rating.toLowerCase()}`;
-    heroRating.textContent = featuredVideo.rating === "L" ? "L" : `${featuredVideo.rating}+`;
-
-    // Eventos dos botões do Hero
-    // Limpar listeners antigos (busca os elementos atuais no DOM, pois podem já ter sido substituídos em uma chamada anterior)
-    const currentPlayBtn = document.getElementById('hero-play-btn');
-    const currentInfoBtn = document.getElementById('hero-info-btn');
-    const newPlayBtn = currentPlayBtn.cloneNode(true);
-    const newInfoBtn = currentInfoBtn.cloneNode(true);
-    currentPlayBtn.parentNode.replaceChild(newPlayBtn, currentPlayBtn);
-    currentInfoBtn.parentNode.replaceChild(newInfoBtn, currentInfoBtn);
-
-    document.getElementById('hero-play-btn').addEventListener('click', () => {
-        openPlayerModal(featuredVideo);
-    });
-
-    document.getElementById('hero-info-btn').addEventListener('click', () => {
-        openVideoDetails(featuredVideo);
-    });
-}
+// (A função setupHeroBanner foi removida — o Banner Principal agora usa uma imagem estática fixa,
+// definida diretamente no HTML/CSS, sem depender de nenhum vídeo específico da biblioteca.)
 
 // Inserir os Cards no Slider
 function renderCarouselCards(carouselElement, videos) {
@@ -1297,11 +1267,38 @@ function renderAdminList() {
     adminVideosContainer.innerHTML = '';
     
     if (allVideos.length === 0) {
+        if (adminSearchCount) adminSearchCount.textContent = '';
         adminVideosContainer.innerHTML = '<p style="font-size:0.85rem; color:var(--text-muted); text-align:center; padding: 20px;">Nenhum vídeo cadastrado.</p>';
         return;
     }
 
-    allVideos.forEach(video => {
+    // Filtra pela pesquisa do painel admin (título, canal/diretor, nome da série ou categoria)
+    let videosToShow = allVideos;
+    if (adminSearchQuery !== '') {
+        videosToShow = allVideos.filter(video => {
+            const haystack = [
+                video.title,
+                video.director,
+                video.seriesName,
+                video.category,
+                video.cast
+            ].filter(Boolean).join(' ').toLowerCase();
+            return haystack.includes(adminSearchQuery);
+        });
+    }
+
+    if (adminSearchCount) {
+        adminSearchCount.textContent = adminSearchQuery !== ''
+            ? `${videosToShow.length} de ${allVideos.length} vídeo${allVideos.length !== 1 ? 's' : ''}`
+            : `${allVideos.length} vídeo${allVideos.length !== 1 ? 's' : ''}`;
+    }
+
+    if (videosToShow.length === 0) {
+        adminVideosContainer.innerHTML = '<p style="font-size:0.85rem; color:var(--text-muted); text-align:center; padding: 20px;">Nenhum vídeo encontrado para essa pesquisa.</p>';
+        return;
+    }
+
+    videosToShow.forEach(video => {
         const row = document.createElement('div');
         row.className = 'admin-video-row';
         row.innerHTML = `
@@ -1348,7 +1345,6 @@ window.prepareEditVideo = function(id) {
     newImagePosY.value = (video.imagePosY != null) ? video.imagePosY : 50;
     newImageZoom.value = (video.imageZoom != null) ? video.imageZoom : DEFAULT_POSTER_ZOOM;
     applyImageAlignToPreview();
-    document.getElementById('new-featured').checked = video.featured || false;
     newSeriesName.value = video.seriesName || "";
     newEpisodeOrder.value = (video.episodeOrder != null) ? video.episodeOrder : "";
     toggleSeriesOrderFields();

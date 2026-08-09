@@ -58,6 +58,9 @@ const techActorPool = [
 
 // 3. Seleção de Elementos DOM
 const navbar = document.getElementById('navbar');
+const navToggleBtn = document.getElementById('nav-toggle-btn');
+const navLinksList = document.getElementById('nav-links');
+const navMobileBackdrop = document.getElementById('nav-mobile-backdrop');
 const searchToggleBtn = document.getElementById('search-toggle-btn');
 const searchInput = document.getElementById('search-input');
 const searchContainer = searchToggleBtn.parentElement;
@@ -92,6 +95,10 @@ const newImagePosY = document.getElementById('new-image-pos-y');
 const btnResetAlign = document.getElementById('btn-reset-align');
 const btnCancelEdit = document.getElementById('btn-cancel-edit');
 const formActionTitle = document.getElementById('form-action-title');
+const newCategorySelect = document.getElementById('new-category');
+const seriesOrderFields = document.getElementById('series-order-fields');
+const newSeriesName = document.getElementById('new-series-name');
+const newEpisodeOrder = document.getElementById('new-episode-order');
 
 // Destaque (Hero)
 const heroTitle = document.getElementById('hero-title');
@@ -125,6 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupNavScroll();
     setupEventListeners();
     loadYoutubeIFrameAPI();
+    toggleSeriesOrderFields();
 });
 
 // Efeito de escurecer a navbar ao rolar a página
@@ -164,10 +172,16 @@ function setupEventListeners() {
     const navLinks = document.querySelectorAll('.nav-links li');
     navLinks.forEach(link => {
         link.addEventListener('click', (e) => {
+            const clickedLi = e.target.closest('li[data-filter]');
+            if (!clickedLi) return;
+
             navLinks.forEach(l => l.classList.remove('active'));
-            e.target.classList.add('active');
-            activeCategoryFilter = e.target.getAttribute('data-filter');
-            
+            clickedLi.classList.add('active');
+            activeCategoryFilter = clickedLi.getAttribute('data-filter');
+
+            // Fecha o menu mobile, se estiver aberto
+            closeMobileNav();
+
             // Rolar suavemente até o início das fileiras
             window.scrollTo({
                 top: document.querySelector('.main-container').offsetTop - 100,
@@ -177,6 +191,26 @@ function setupEventListeners() {
             filterAndRenderRows();
         });
     });
+
+    // Menu de Navegação Mobile (Hambúrguer)
+    if (navToggleBtn) {
+        navToggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = navLinksList.classList.toggle('open');
+            navMobileBackdrop.classList.toggle('open', isOpen);
+            navToggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            navToggleBtn.innerHTML = `<i data-lucide="${isOpen ? 'x' : 'menu'}"></i>`;
+            lucide.createIcons();
+        });
+    }
+    if (navMobileBackdrop) {
+        navMobileBackdrop.addEventListener('click', closeMobileNav);
+    }
+
+    // Alterna a exibição dos campos de ordenação de série conforme a categoria
+    if (newCategorySelect) {
+        newCategorySelect.addEventListener('change', toggleSeriesOrderFields);
+    }
 
     // Botões administrativos
     btnAdminPanel.addEventListener('click', () => {
@@ -309,12 +343,27 @@ function setupEventListeners() {
             imagePosY: parseFloat(newImagePosY.value) || 50,
             imageZoom: parseFloat(newImageZoom.value) || 100,
             featured: document.getElementById('new-featured').checked,
+            seriesName: (document.getElementById('new-category').value === 'series') ? newSeriesName.value.trim() : '',
+            episodeOrder: (document.getElementById('new-category').value === 'series' && newEpisodeOrder.value !== '') ? parseFloat(newEpisodeOrder.value) : null,
             createdAt: new Date().getTime()
         };
 
         if (!videoData.videoId) {
             alert("URL do YouTube inválida.");
             return;
+        }
+
+        if (videoData.category === 'series' && !videoData.seriesName) {
+            alert("Para vídeos do tipo Série, informe o \"Nome da Série\" para agrupar os capítulos corretamente.");
+            return;
+        }
+
+        // Preserva a data de criação original ao editar (não mexe na ordenação de "recentes")
+        if (editId) {
+            const existing = allVideos.find(v => v.id === editId);
+            if (existing && existing.createdAt) {
+                videoData.createdAt = existing.createdAt;
+            }
         }
 
         // Se este vídeo for Destaque Principal, desativa os outros
@@ -352,7 +401,7 @@ function setupEventListeners() {
                 filterAndRenderRows();
                 renderAdminList();
             }
-            modalAdmin.classList.add('hidden');
+            // Permanece no painel administrativo após salvar (não fecha o modal nem exige senha novamente)
         } catch (error) {
             console.error("Erro ao salvar:", error);
             alert("Ocorreu um erro ao salvar o vídeo.");
@@ -365,6 +414,25 @@ function setupEventListeners() {
     btnExportJson.addEventListener('click', exportLibraryToJson);
     btnImportJsonTrigger.addEventListener('click', () => importJsonFile.click());
     importJsonFile.addEventListener('change', importLibraryFromJson);
+}
+
+// Fecha o menu de navegação mobile (usado ao selecionar um filtro ou clicar fora)
+function closeMobileNav() {
+    if (!navLinksList) return;
+    navLinksList.classList.remove('open');
+    if (navMobileBackdrop) navMobileBackdrop.classList.remove('open');
+    if (navToggleBtn) {
+        navToggleBtn.setAttribute('aria-expanded', 'false');
+        navToggleBtn.innerHTML = `<i data-lucide="menu"></i>`;
+        lucide.createIcons();
+    }
+}
+
+// Mostra/oculta os campos de "Nome da Série" e "Ordem do Episódio" conforme a categoria escolhida
+function toggleSeriesOrderFields() {
+    if (!seriesOrderFields || !newCategorySelect) return;
+    const isSeries = newCategorySelect.value === 'series';
+    seriesOrderFields.classList.toggle('hidden', !isSeries);
 }
 
 // 6. Carregar Dados de Vídeos (Firebase ou LocalStorage)
@@ -689,6 +757,12 @@ function filterAndRenderRows() {
             rowVideos = rowVideos.slice(0, 10); // Limita a 10 itens
         }
 
+        // Tratamento especial para "Séries": agrupa por série e ordena os capítulos pela ordem definida,
+        // sem misturar episódios de séries diferentes
+        if (row.key === 'series') {
+            rowVideos = groupAndSortSeriesEpisodes(rowVideos);
+        }
+
         // Filtro da barra lateral/superior (se categoria específica está ativa)
         const isSectionVisible = 
             (activeFilter === 'todos' || activeFilter === row.key) && 
@@ -723,6 +797,43 @@ function filterAndRenderRows() {
 
     // Recriar ícones lucide dinamicamente inseridos
     lucide.createIcons();
+}
+
+// Agrupa episódios da mesma série (por "seriesName") e os ordena pela "episodeOrder" definida no admin,
+// garantindo que capítulos de séries diferentes não fiquem intercalados na fileira.
+function groupAndSortSeriesEpisodes(videos) {
+    const groups = new Map();
+
+    videos.forEach(video => {
+        // Vídeos sem "Nome da Série" definido formam seu próprio grupo (não se agrupam com outros)
+        const key = (video.seriesName && video.seriesName.trim())
+            ? video.seriesName.trim().toLowerCase()
+            : `__single_${video.id}`;
+
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(video);
+    });
+
+    const groupList = Array.from(groups.values());
+
+    // Ordena os episódios dentro de cada série pela ordem definida (episódios sem ordem vão ao final, por data)
+    groupList.forEach(group => {
+        group.sort((a, b) => {
+            const orderA = (a.episodeOrder != null) ? a.episodeOrder : Infinity;
+            const orderB = (b.episodeOrder != null) ? b.episodeOrder : Infinity;
+            if (orderA !== orderB) return orderA - orderB;
+            return (a.createdAt || 0) - (b.createdAt || 0);
+        });
+    });
+
+    // Ordena as séries entre si pela data mais recente de cada grupo (mantém o vídeo/série mais novo primeiro)
+    groupList.sort((groupA, groupB) => {
+        const maxA = Math.max(...groupA.map(v => v.createdAt || 0));
+        const maxB = Math.max(...groupB.map(v => v.createdAt || 0));
+        return maxB - maxA;
+    });
+
+    return groupList.flat();
 }
 
 // Configurar o Banner de Destaque
@@ -962,7 +1073,7 @@ function renderAdminList() {
         row.className = 'admin-video-row';
         row.innerHTML = `
             <div class="admin-video-row-left">
-                <img src="${video.imageUrl}" alt="Capa" class="admin-video-thumb" style="${getPosterImageStyle(video)}">
+                <img src="${video.imageUrl}" alt="Capa" class="admin-video-thumb">
                 <div class="admin-video-text">
                     <span class="admin-video-title-item">${video.title}</span>
                     <span class="admin-video-channel">${video.director} (${video.category})</span>
@@ -1005,6 +1116,9 @@ window.prepareEditVideo = function(id) {
     newImageZoom.value = (video.imageZoom != null) ? video.imageZoom : 100;
     applyImageAlignToPreview();
     document.getElementById('new-featured').checked = video.featured || false;
+    newSeriesName.value = video.seriesName || "";
+    newEpisodeOrder.value = (video.episodeOrder != null) ? video.episodeOrder : "";
+    toggleSeriesOrderFields();
 
     // Atualizar títulos do painel
     formActionTitle.textContent = "Editar Vídeo";
@@ -1043,6 +1157,7 @@ function resetForm() {
     newImagePosY.value = 50;
     newImageZoom.value = 100;
     applyImageAlignToPreview();
+    toggleSeriesOrderFields();
     formActionTitle.textContent = "Adicionar Novo Vídeo";
     btnCancelEdit.classList.add('hidden');
     document.getElementById('btn-save-video').innerHTML = `<i data-lucide="check"></i> Salvar Vídeo`;

@@ -24,8 +24,11 @@
     <!-- Barra de Navegação Estilo Netflix -->
     <nav class="netflix-navbar" id="navbar">
         <div class="nav-left">
+            <button class="nav-toggle-btn" id="nav-toggle-btn" aria-label="Abrir menu" aria-expanded="false">
+                <i data-lucide="menu"></i>
+            </button>
             <h1 class="logo">TUBE<span>FLIX</span></h1>
-            <ul class="nav-links">
+            <ul class="nav-links" id="nav-links">
                 <li class="active" data-filter="todos">Início</li>
                 <li data-filter="filmes">Filmes</li>
                 <li data-filter="series">Séries</li>
@@ -51,6 +54,7 @@
             </div>
         </div>
     </nav>
+    <div class="nav-mobile-backdrop" id="nav-mobile-backdrop"></div>
 
     <!-- Banner Principal / Hero Destaque -->
     <header class="hero-banner" id="hero-banner">
@@ -311,6 +315,20 @@
                             <div class="form-group span-full">
                                 <label for="new-director">Canal Produtor / Diretor <span class="required">*</span></label>
                                 <input type="text" id="new-director" class="form-control" required placeholder="Ex: Nome do Canal ou Estúdio">
+                            </div>
+
+                            <div class="form-group span-full series-order-fields hidden" id="series-order-fields">
+                                <div class="series-order-grid">
+                                    <div class="form-group">
+                                        <label for="new-series-name">Nome da Série <span class="required">*</span></label>
+                                        <input type="text" id="new-series-name" class="form-control" placeholder="Ex: Nome da Série (igual para todos os capítulos)">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="new-episode-order">Ordem / Nº do Episódio <span class="required">*</span></label>
+                                        <input type="number" id="new-episode-order" class="form-control" min="0" step="1" placeholder="Ex: 1">
+                                    </div>
+                                </div>
+                                <span class="input-hint">Use o mesmo "Nome da Série" em todos os capítulos para agrupá-los, e defina a ordem de exibição em cada um. Episódios de séries diferentes não se misturam.</span>
                             </div>
 
                             <div class="form-group span-full">

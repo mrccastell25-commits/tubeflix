@@ -456,12 +456,28 @@
                 </div>
             </div>
 
+            <div class="form-row" style="grid-template-columns: 1fr 1fr;">
+                <div class="form-group">
+                    <label for="video-start">
+                        <i data-lucide="play"></i> Vídeo inicial
+                    </label>
+                    <input type="number" id="video-start" class="form-control" value="1" min="1" step="1">
+                </div>
+                <div class="form-group">
+                    <label for="video-end">
+                        <i data-lucide="flag"></i> Vídeo final
+                    </label>
+                    <input type="number" id="video-end" class="form-control" value="30" min="1" step="1">
+                </div>
+            </div>
+            </div>
+
             <div class="alert-info">
                 <i data-lucide="info" style="width: 18px; height: 18px;"></i>
                 <div>
                     <strong>Como funciona a extração?</strong><br>
-                    • <strong>Sem API Key (Instantâneo)</strong>: Usa o feed público RSS. Retorna os últimos <strong>15 vídeos</strong> da playlist e tem limite de requisições do proxy CORS.<br>
-                    • <strong>Com API Key (Completo)</strong>: Acessa diretamente a API oficial do YouTube v3. Retorna **todos** os vídeos da playlist (até 500 itens). <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" style="text-decoration:underline; color:#90cdf4;">Crie sua chave de graça no Google Cloud Console</a>.
+                    • <strong>Sem API Key</strong>: tenta carregar a playlist pública diretamente pela página do YouTube, usando paginação interna para alcançar o intervalo solicitado.<br>
+                    • <strong>Com API Key</strong>: usa a API oficial do YouTube v3, com paginação e maior confiabilidade. <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" style="text-decoration:underline; color:#90cdf4;">Crie sua chave de graça no Google Cloud Console</a>.
                 </div>
             </div>
 
@@ -533,6 +549,8 @@
         // Seletores de Elementos
         const playlistUrlInput = document.getElementById('playlist-url');
         const apiKeyInput = document.getElementById('youtube-api-key');
+        const videoStartInput = document.getElementById('video-start');
+        const videoEndInput = document.getElementById('video-end');
         const btnStartExtract = document.getElementById('btn-start-extract');
         const loadingArea = document.getElementById('loading-area');
         const loadingStatus = document.getElementById('loading-status');
@@ -560,6 +578,8 @@
         btnStartExtract.addEventListener('click', async () => {
             const playlistUrl = playlistUrlInput.value.trim();
             const apiKey = apiKeyInput.value.trim();
+            const startIndex = Math.max(1, parseInt(videoStartInput.value, 10) || 1);
+            const endIndex = Math.max(startIndex, parseInt(videoEndInput.value, 10) || startIndex);
 
             if (!playlistUrl) {
                 alert("Por favor, insira o link da playlist do YouTube.");
@@ -581,11 +601,11 @@
 
             try {
                 if (apiKey) {
-                    loadingStatus.textContent = "Buscando vídeos usando a API oficial do YouTube v3...";
-                    await fetchWithYouTubeApi(playlistId, apiKey);
+                    loadingStatus.textContent = `Buscando vídeos ${startIndex}–${endIndex} usando a API oficial do YouTube v3...`;
+                    await fetchWithYouTubeApi(playlistId, apiKey, startIndex, endIndex);
                 } else {
-                    loadingStatus.textContent = "Buscando vídeos usando o feed RSS público (limite 15 vídeos)...";
-                    await fetchWithRssFeed(playlistId);
+                    loadingStatus.textContent = `Buscando vídeos ${startIndex}–${endIndex} da playlist pública...`;
+                    await fetchWithPlaylistPage(playlistId, startIndex, endIndex);
                 }
 
                 if (extractedVideos.length === 0) {
@@ -744,8 +764,169 @@
             }
         }
 
-        // 3. Extração usando a API oficial do YouTube v3
-        async function fetchWithYouTubeApi(playlistId, apiKey) {
+        // 3. Extração sem API Key usando a página pública da playlist + paginação interna.
+        // Observação: esta é uma técnica de fallback. O YouTube pode alterar o formato interno da página.
+        async function fetchWithPlaylistPage(playlistId, startIndex = 1, endIndex = 30) {
+            const wantedCount = endIndex;
+            let collected = [];
+            let continuation = null;
+            let firstRequest = true;
+            let safety = 0;
+
+            while (collected.length < wantedCount && safety < 30) {
+                safety++;
+                loadingStatus.textContent = `Carregando playlist... ${collected.length} vídeos encontrados`;
+
+                let data;
+                if (firstRequest) {
+                    const playlistUrl = `https://www.youtube.com/playlist?list=${encodeURIComponent(playlistId)}`;
+                    const html = await fetchTextThroughProxy(playlistUrl);
+                    data = extractYtInitialData(html);
+                    firstRequest = false;
+                } else {
+                    data = await fetchYouTubeContinuation(continuation);
+                }
+
+                if (!data) break;
+
+                const videos = extractVideosAndContinuation(data);
+                for (const v of videos.items) {
+                    if (!collected.some(x => x.videoId === v.videoId)) collected.push(v);
+                    if (collected.length >= wantedCount) break;
+                }
+                continuation = videos.continuation;
+
+                if (!continuation || videos.items.length === 0) break;
+            }
+
+            if (collected.length < startIndex) {
+                throw new Error(`Não foi possível alcançar o vídeo ${startIndex}. O YouTube pode ter bloqueado a consulta ou alterado a estrutura da playlist.`);
+            }
+
+            const selected = collected.slice(startIndex - 1, endIndex);
+            selected.forEach((v) => {
+                const smartDetails = generateSmartDetails(v.title, v.authorName);
+                extractedVideos.push({
+                    url: `https://www.youtube.com/watch?v=${v.videoId}`,
+                    videoId: v.videoId,
+                    title: cleanTitle(v.title),
+                    category: smartDetails.category,
+                    rating: smartDetails.rating,
+                    duration: smartDetails.duration,
+                    year: smartDetails.year,
+                    director: v.authorName || "YouTube Creator",
+                    imageUrl: `https://img.youtube.com/vi/${v.videoId}/maxresdefault.jpg`
+                });
+            });
+
+            if (extractedVideos.length === 0) {
+                throw new Error("Nenhum vídeo válido foi encontrado nesse intervalo.");
+            }
+        }
+
+        async function fetchTextThroughProxy(url) {
+            const proxies = [
+                `https://corsproxy.io/?${encodeURIComponent(url)}`,
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+            ];
+
+            let lastError = null;
+            for (const proxyUrl of proxies) {
+                try {
+                    const response = await fetch(proxyUrl);
+                    if (response.ok) return await response.text();
+                } catch (err) {
+                    lastError = err;
+                }
+            }
+            throw new Error("Não foi possível acessar a página pública da playlist pelos proxies CORS.");
+        }
+
+        function extractYtInitialData(html) {
+            const patterns = [
+                /var ytInitialData = (.*?);<\/script>/s,
+                /ytInitialData\s*=\s*(\{.*?\})\s*;\s*<\/script>/s,
+                /window\["ytInitialData"\]\s*=\s*(\{.*?\})\s*;/s
+            ];
+
+            for (const pattern of patterns) {
+                const match = html.match(pattern);
+                if (match) {
+                    try { return JSON.parse(match[1]); } catch (_) {}
+                }
+            }
+            throw new Error("O YouTube não retornou os dados internos da playlist.");
+        }
+
+        function extractVideosAndContinuation(root) {
+            const result = { items: [], continuation: null };
+            const seenObjects = new Set();
+
+            function walk(node) {
+                if (!node || typeof node !== "object" || seenObjects.has(node)) return;
+                seenObjects.add(node);
+
+                if (node.videoId && (node.title?.runs || node.title?.simpleText)) {
+                    const title = node.title?.simpleText || node.title?.runs?.map(r => r.text || "").join("") || "";
+                    const owner = node.shortBylineText?.runs?.[0]?.text ||
+                                  node.longBylineText?.runs?.[0]?.text ||
+                                  node.ownerText?.runs?.[0]?.text ||
+                                  "YouTube Creator";
+                    result.items.push({ videoId: node.videoId, title, authorName: owner });
+                }
+
+                if (!result.continuation && node.continuationEndpoint?.continuationCommand?.token) {
+                    result.continuation = node.continuationEndpoint.continuationCommand.token;
+                }
+
+                if (Array.isArray(node)) {
+                    node.forEach(walk);
+                } else {
+                    Object.values(node).forEach(walk);
+                }
+            }
+
+            walk(root);
+            return result;
+        }
+
+        async function fetchYouTubeContinuation(token) {
+            const endpoint = "https://www.youtube.com/youtubei/v1/browse?prettyPrint=false";
+            const body = {
+                context: {
+                    client: {
+                        hl: "pt-BR",
+                        gl: "BR",
+                        clientName: "WEB",
+                        clientVersion: "2.20260807.01.00"
+                    }
+                },
+                continuation: token
+            };
+
+            const proxies = [
+                `https://corsproxy.io/?${encodeURIComponent(endpoint)}`,
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(endpoint)}`
+            ];
+
+            let lastError = null;
+            for (const proxyUrl of proxies) {
+                try {
+                    const response = await fetch(proxyUrl, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(body)
+                    });
+                    if (response.ok) return await response.json();
+                } catch (err) {
+                    lastError = err;
+                }
+            }
+            throw new Error("Não foi possível solicitar a próxima página da playlist.");
+        }
+
+        // 4. Extração usando a API oficial do YouTube v3
+        async function fetchWithYouTubeApi(playlistId, apiKey, startIndex = 1, endIndex = 500) {
             let nextPageToken = '';
             let keepFetching = true;
             let videosAccumulator = [];
@@ -764,7 +945,7 @@
                 
                 videosAccumulator = videosAccumulator.concat(items);
 
-                if (data.nextPageToken && videosAccumulator.length < 500) {
+                if (data.nextPageToken && videosAccumulator.length < endIndex) {
                     nextPageToken = data.nextPageToken;
                 } else {
                     keepFetching = false;
@@ -775,7 +956,7 @@
                 throw new Error("Nenhum vídeo encontrado ou a playlist é privada.");
             }
 
-            videosAccumulator.forEach(item => {
+            videosAccumulator.slice(startIndex - 1, endIndex).forEach(item => {
                 const snippet = item.snippet || {};
                 const contentDetails = item.contentDetails || {};
                 const videoId = contentDetails.videoId || snippet.resourceId?.videoId;

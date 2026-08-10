@@ -47,6 +47,7 @@ let allVideos = [];
 let myFavoriteList = JSON.parse(localStorage.getItem('tubeflix_favorites')) || [];
 let activeCategoryFilter = 'todos';
 let currentSearchQuery = '';
+let adminSearchQuery = ''; // Pesquisa dentro do painel administrativo, para localizar um vídeo a editar
 let activeYoutubePlayer = null; // Instância do YT.Player quando a API estiver pronta
 let pendingAutoplayVideoId = null; // Guarda o vídeo a carregar caso a API do YouTube ainda não tenha carregado
 let currentPlayingVideo = null; // Vídeo atualmente aberto no player (usado para calcular o próximo capítulo)
@@ -115,6 +116,9 @@ const newImagePosX = document.getElementById('new-image-pos-x');
 const newImagePosY = document.getElementById('new-image-pos-y');
 const btnResetAlign = document.getElementById('btn-reset-align');
 const btnCancelEdit = document.getElementById('btn-cancel-edit');
+const adminSplitLayout = document.getElementById('admin-split-layout');
+const btnBackToList = document.getElementById('btn-back-to-list');
+const btnAddNewVideo = document.getElementById('btn-add-new-video');
 const formActionTitle = document.getElementById('form-action-title');
 const newCategorySelect = document.getElementById('new-category');
 const seriesOrderFields = document.getElementById('series-order-fields');
@@ -129,8 +133,11 @@ const heroMatch = document.getElementById('hero-match');
 const heroYear = document.getElementById('hero-year');
 const heroRating = document.getElementById('hero-rating');
 const heroDuration = document.getElementById('hero-duration');
-const heroPlayBtn = document.getElementById('hero-play-btn');
-const heroInfoBtn = document.getElementById('hero-info-btn');
+
+// Pesquisa de vídeos no painel admin
+const adminSearchInput = document.getElementById('admin-search-input');
+const btnClearAdminSearch = document.getElementById('btn-clear-admin-search');
+const adminSearchCount = document.getElementById('admin-search-count');
 
 // Backups e Outros
 const btnExportJson = document.getElementById('btn-export-json');
@@ -188,6 +195,24 @@ function setupEventListeners() {
         currentSearchQuery = e.target.value.toLowerCase().trim();
         filterAndRenderRows();
     });
+
+    // Pesquisa de vídeos dentro do painel administrativo (para localizar rapidamente um vídeo a editar)
+    if (adminSearchInput) {
+        adminSearchInput.addEventListener('input', (e) => {
+            adminSearchQuery = e.target.value.toLowerCase().trim();
+            btnClearAdminSearch.classList.toggle('hidden', adminSearchQuery === '');
+            renderAdminList();
+        });
+    }
+    if (btnClearAdminSearch) {
+        btnClearAdminSearch.addEventListener('click', () => {
+            adminSearchQuery = '';
+            adminSearchInput.value = '';
+            btnClearAdminSearch.classList.add('hidden');
+            renderAdminList();
+            adminSearchInput.focus();
+        });
+    }
 
     // Filtros de Categorias no Topo
     const navLinks = document.querySelectorAll('.nav-links li');
@@ -248,6 +273,20 @@ function setupEventListeners() {
     closePlayerBtn.addEventListener('click', closePlayerModal);
     btnCancelNextEpisode.addEventListener('click', cancelNextEpisodeCountdown);
     btnPlayNextEpisode.addEventListener('click', playPendingNextEpisode);
+
+    // Navegação entre lista e formulário no painel admin (relevante principalmente no celular)
+    if (btnAddNewVideo) {
+        btnAddNewVideo.addEventListener('click', () => {
+            resetForm();
+            showAdminFormView();
+        });
+    }
+    if (btnBackToList) {
+        btnBackToList.addEventListener('click', () => {
+            resetForm();
+            showAdminListView();
+        });
+    }
     closeSeriesEpisodesBtn.addEventListener('click', closeSeriesEpisodesModal);
     // Fecha ao clicar fora do card de episódios (na área escurecida)
     modalSeriesEpisodes.addEventListener('click', (e) => {
@@ -426,14 +465,19 @@ function setupEventListeners() {
                 filterAndRenderRows();
                 renderAdminList();
             }
-            // Permanece no painel administrativo após salvar (não fecha o modal nem exige senha novamente)
+            // Permanece no painel administrativo após salvar (não fecha o modal nem exige senha novamente),
+            // mas no celular volta para a lista em tela cheia (não fica preso na tela do formulário)
+            showAdminListView();
         } catch (error) {
             console.error("Erro ao salvar:", error);
             alert("Ocorreu um erro ao salvar o vídeo.");
         }
     });
 
-    btnCancelEdit.addEventListener('click', resetForm);
+    btnCancelEdit.addEventListener('click', () => {
+        resetForm();
+        showAdminListView();
+    });
 
     // Exportar e Importar JSON
     btnExportJson.addEventListener('click', exportLibraryToJson);
@@ -467,6 +511,17 @@ function scrollToActiveCategory() {
         top: targetSection.offsetTop - navbarHeight,
         behavior: 'smooth'
     });
+}
+
+// Alterna entre a lista de vídeos e o formulário de adicionar/editar no painel admin.
+// No celular, essas duas telas nunca ficam visíveis ao mesmo tempo (evita "dividir" a tela pequena).
+// No desktop essas funções não têm efeito visual (o CSS só diferencia dentro da media query mobile).
+function showAdminFormView() {
+    if (adminSplitLayout) adminSplitLayout.classList.add('showing-form');
+}
+
+function showAdminListView() {
+    if (adminSplitLayout) adminSplitLayout.classList.remove('showing-form');
 }
 
 // Fecha o menu de navegação mobile (usado ao selecionar um filtro ou clicar fora)
@@ -552,6 +607,7 @@ function verifyAdminPassword() {
         modalAdmin.classList.remove('hidden');
         resetForm();
         renderAdminList();
+        showAdminListView(); // Sempre abre o painel mostrando a lista (relevante no celular)
     } else {
         alert("Senha incorreta! Use a senha padrão '123'.");
     }
@@ -933,7 +989,8 @@ function setupHeroBanner() {
     heroRating.textContent = featuredVideo.rating === "L" ? "L" : `${featuredVideo.rating}+`;
 
     // Eventos dos botões do Hero
-    // Limpar listeners antigos (busca os elementos atuais no DOM, pois podem já ter sido substituídos em uma chamada anterior)
+    // Busca os elementos atuais no DOM (podem já ter sido substituídos em uma chamada anterior) para
+    // evitar erro ao tentar substituir um nó que não está mais no DOM
     const currentPlayBtn = document.getElementById('hero-play-btn');
     const currentInfoBtn = document.getElementById('hero-info-btn');
     const newPlayBtn = currentPlayBtn.cloneNode(true);
@@ -1116,9 +1173,44 @@ function createOrLoadYoutubePlayer(videoId) {
         videoId: videoId,
         playerVars: { autoplay: 1, rel: 0 },
         events: {
-            onStateChange: handlePlayerStateChange
+            onStateChange: handlePlayerStateChange,
+            onError: handlePlayerError
         }
     });
+}
+
+// Alguns vídeos não podem ser reproduzidos embutidos no site (o dono do vídeo bloqueou a incorporação,
+// o vídeo foi removido/é privado, etc). Nesses casos o player do YouTube mostraria uma mensagem de erro
+// como "Vídeo indisponível" com um link para assistir no YouTube — em vez de mostrar essa mensagem,
+// fechamos nosso player e abrimos o vídeo diretamente no YouTube em uma nova aba.
+// Alguns vídeos não podem ser reproduzidos embutidos no site (o dono do vídeo bloqueou a incorporação,
+// ou o vídeo foi removido/é privado). Nesses casos o player do YouTube mostraria uma mensagem de erro
+// como "Vídeo indisponível" com um link para assistir no YouTube — em vez de mostrar essa mensagem,
+// fechamos nosso player e abrimos o vídeo diretamente no YouTube em uma nova aba.
+//
+// IMPORTANTE: só fazemos isso para os códigos de erro que realmente significam "não é possível
+// incorporar este vídeo". Outros códigos (parâmetro inválido, erro genérico do player HTML5) podem
+// ser falhas passageiras e NÃO significam que o vídeo está indisponível — nesses casos não redirecionamos,
+// para não abrir o YouTube desnecessariamente em vídeos que na verdade funcionam.
+function handlePlayerError(event) {
+    const code = event.data;
+
+    // 100 = vídeo não encontrado (removido ou privado)
+    // 101 / 150 = o dono do vídeo não permite reprodução incorporada (embed) neste site
+    const NOT_EMBEDDABLE_CODES = [100, 101, 150];
+    if (!NOT_EMBEDDABLE_CODES.includes(code)) {
+        console.warn(`YouTube Player: erro código ${code} ignorado (não indica bloqueio de incorporação).`);
+        return;
+    }
+
+    const videoId = currentPlayingVideo ? currentPlayingVideo.videoId : null;
+
+    cancelNextEpisodeCountdown();
+    closePlayerModal();
+
+    if (videoId) {
+        window.open(`https://www.youtube.com/watch?v=${videoId}`, '_blank', 'noopener');
+    }
 }
 
 // Detecta o fim da reprodução para oferecer o próximo capítulo automaticamente (apenas séries)
@@ -1297,11 +1389,38 @@ function renderAdminList() {
     adminVideosContainer.innerHTML = '';
     
     if (allVideos.length === 0) {
+        if (adminSearchCount) adminSearchCount.textContent = '';
         adminVideosContainer.innerHTML = '<p style="font-size:0.85rem; color:var(--text-muted); text-align:center; padding: 20px;">Nenhum vídeo cadastrado.</p>';
         return;
     }
 
-    allVideos.forEach(video => {
+    // Filtra pela pesquisa do painel admin (título, canal/diretor, nome da série ou categoria)
+    let videosToShow = allVideos;
+    if (adminSearchQuery !== '') {
+        videosToShow = allVideos.filter(video => {
+            const haystack = [
+                video.title,
+                video.director,
+                video.seriesName,
+                video.category,
+                video.cast
+            ].filter(Boolean).join(' ').toLowerCase();
+            return haystack.includes(adminSearchQuery);
+        });
+    }
+
+    if (adminSearchCount) {
+        adminSearchCount.textContent = adminSearchQuery !== ''
+            ? `${videosToShow.length} de ${allVideos.length} vídeo${allVideos.length !== 1 ? 's' : ''}`
+            : `${allVideos.length} vídeo${allVideos.length !== 1 ? 's' : ''}`;
+    }
+
+    if (videosToShow.length === 0) {
+        adminVideosContainer.innerHTML = '<p style="font-size:0.85rem; color:var(--text-muted); text-align:center; padding: 20px;">Nenhum vídeo encontrado para essa pesquisa.</p>';
+        return;
+    }
+
+    videosToShow.forEach(video => {
         const row = document.createElement('div');
         row.className = 'admin-video-row';
         row.innerHTML = `
@@ -1358,6 +1477,9 @@ window.prepareEditVideo = function(id) {
     btnCancelEdit.classList.remove('hidden');
     document.getElementById('btn-save-video').innerHTML = `<i data-lucide="check"></i> Atualizar Vídeo`;
     lucide.createIcons();
+
+    // No celular, abre o formulário em tela cheia (a lista fica em segundo plano até salvar/cancelar)
+    showAdminFormView();
 };
 
 window.deleteVideo = async function(id) {
@@ -1425,34 +1547,64 @@ function importLibraryFromJson(e) {
                 throw new Error("Formato inválido. O arquivo JSON deve ser um array de vídeos.");
             }
 
-            if (!confirm(`Deseja importar ${importedData.length} vídeos para sua biblioteca? Destaques anteriores poderão ser reescritos.`)) {
+            if (importedData.length === 0) {
+                alert("O arquivo selecionado não contém nenhum vídeo para importar.");
+                e.target.value = '';
+                return;
+            }
+
+            if (!confirm(`Deseja importar ${importedData.length} vídeo(s) para sua biblioteca? Eles serão adicionados aos vídeos já existentes (nada será apagado).`)) {
+                e.target.value = '';
                 return;
             }
 
             if (useLocalStorageFallback) {
-                // Sobrescrever ou fundir no LocalStorage
-                allVideos = importedData;
+                // Soma aos vídeos já existentes (não substitui a biblioteca).
+                // Garante que cada vídeo importado tenha um ID único, mesmo que o arquivo não traga um.
+                const existingIds = new Set(allVideos.map(v => v.id));
+                const newVideos = importedData.map((video, idx) => {
+                    let id = video.id;
+                    if (!id || existingIds.has(id)) {
+                        id = `imported_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 8)}`;
+                    }
+                    existingIds.add(id);
+                    return { ...video, id };
+                });
+                allVideos = allVideos.concat(newVideos);
                 localStorage.setItem('tubeflix_videos', JSON.stringify(allVideos));
-                alert("Dados importados no LocalStorage com sucesso!");
+                alert(`${newVideos.length} vídeo(s) importado(s) com sucesso!`);
                 filterAndRenderRows();
                 renderAdminList();
             } else {
-                // Salvar no Firebase Realtime Database
+                // Salvar no Firebase Realtime Database (cada vídeo recebe uma nova chave gerada pelo Firebase).
+                // Importante: a escrita é feita relativa a "dbRef" (o nó /videos), da mesma forma que um
+                // cadastro individual normal (dbRef.push(...)) — evita problemas com regras de segurança que
+                // podem rejeitar atualizações multi-caminho feitas a partir da raiz do banco de dados.
                 const updates = {};
                 importedData.forEach(video => {
                     const newRefKey = dbRef.push().key;
-                    // Remove id antigo se existir para evitar confusão no Firebase
+                    // Remove o id antigo (se existir) para evitar confusão com a nova chave do Firebase,
+                    // e remove quaisquer campos "undefined" (o Firebase rejeita valores undefined).
                     const { id, ...cleanVideo } = video;
-                    updates[`/videos/${newRefKey}`] = cleanVideo;
+                    Object.keys(cleanVideo).forEach(key => {
+                        if (cleanVideo[key] === undefined) delete cleanVideo[key];
+                    });
+                    updates[newRefKey] = cleanVideo;
                 });
 
-                await database.ref().update(updates);
-                alert("Dados importados no Firebase Database com sucesso!");
+                await dbRef.update(updates);
+                alert(`${importedData.length} vídeo(s) importado(s) no Firebase com sucesso!`);
             }
         } catch (err) {
             console.error("Erro ao importar JSON:", err);
-            alert("Não foi possível importar. Certifique-se de que o arquivo JSON de backup está correto.");
+            alert("Não foi possível importar o arquivo.\n\nDetalhe do erro: " + err.message);
+        } finally {
+            e.target.value = ''; // Permite selecionar o mesmo arquivo novamente, se necessário
         }
+    };
+    reader.onerror = function() {
+        alert("Não foi possível ler o arquivo selecionado. Verifique se ele não está corrompido.");
+        e.target.value = '';
     };
     reader.readAsText(file);
 }

@@ -289,9 +289,12 @@
                 </button>
             </div>
 
-            <div class="admin-split-layout">
+            <div class="admin-split-layout" id="admin-split-layout">
                 <!-- Formulário de Adicionar/Editar -->
                 <div class="admin-form-section">
+                    <button type="button" id="btn-back-to-list" class="btn-back-to-list">
+                        <i data-lucide="arrow-left"></i> Voltar para a lista
+                    </button>
                     <h3 class="section-subtitle" id="form-action-title">Adicionar Novo Vídeo</h3>
                     <form id="add-video-form">
                         <input type="hidden" id="edit-video-id">
@@ -433,6 +436,9 @@
                     <div class="list-section-header">
                         <h3 class="section-subtitle">Vídeos Cadastrados</h3>
                         <div class="backup-actions">
+                            <button id="btn-add-new-video" class="btn-backup btn-add-new-video" title="Adicionar novo vídeo">
+                                <i data-lucide="plus"></i> Adicionar Vídeo
+                            </button>
                             <a href="playlist.html" target="_blank" class="btn-backup" style="text-decoration: none;" title="Extrair vídeos de uma Playlist do YouTube">
                                 <i data-lucide="list-video"></i> Extrair Playlist
                             </a>
@@ -444,6 +450,17 @@
                             </button>
                             <input type="file" id="import-json-file" accept=".json" style="display: none;">
                         </div>
+                    </div>
+
+                    <div class="admin-search-row">
+                        <div class="admin-search-box">
+                            <i data-lucide="search"></i>
+                            <input type="text" id="admin-search-input" placeholder="Pesquisar por título, canal, série ou categoria...">
+                            <button type="button" id="btn-clear-admin-search" class="btn-clear-admin-search hidden" title="Limpar pesquisa">
+                                <i data-lucide="x"></i>
+                            </button>
+                        </div>
+                        <span class="admin-search-count" id="admin-search-count"></span>
                     </div>
 
                     <div class="admin-videos-list" id="admin-videos-container">

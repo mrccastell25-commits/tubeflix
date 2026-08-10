@@ -650,6 +650,7 @@
                 const customDetails = generateSmartDetails(newTitle, newChannel, newCategory);
 
                 finalVideos.push({
+                    id: `yt_${video.videoId}_${Date.now()}_${idx}`,
                     url: video.url,
                     videoId: video.videoId,
                     title: newTitle,
@@ -661,7 +662,12 @@
                     cast: customDetails.cast, // Elenco gerado cinemático
                     description: customDetails.description,
                     imageUrl: video.imageUrl,
+                    imagePosX: 50,
+                    imagePosY: 50,
+                    imageZoom: 85,
                     featured: false,
+                    seriesName: '',
+                    episodeOrder: null,
                     createdAt: new Date().getTime() + idx // incrementa para manter ordem de inserção
                 });
             });

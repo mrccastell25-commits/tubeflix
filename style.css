@@ -453,6 +453,23 @@ body {
     fill: currentColor;
 }
 
+@media (max-width: 700px) {
+    .hero-banner {
+        height: 90vh;
+        padding: 0 5%;
+    }
+    .hero-title {
+        font-size: 1.9rem;
+    }
+    .hero-description {
+        font-size: 0.85rem;
+        -webkit-line-clamp: 2;
+    }
+    .hero-content {
+        max-width: 100%;
+    }
+}
+
 /* Conteúdo Principal */
 .main-container {
     flex: 1;
@@ -1341,7 +1358,7 @@ body {
 .admin-panel-card {
     width: 95%;
     max-width: 1100px;
-    height: 90vh;
+    height: 94vh;
     background-color: var(--netflix-dark-gray);
     border-radius: 8px;
     border: 1px solid var(--border-color);
@@ -1400,10 +1417,63 @@ body {
     height: calc(100% - 73px);
 }
 
+.btn-back-to-list {
+    display: none; /* Só aparece em telas mobile (ver media query abaixo) */
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0 0 14px 0;
+    margin-bottom: 16px;
+    width: 100%;
+}
+
+.btn-back-to-list:hover {
+    color: var(--text-color);
+}
+
+.btn-add-new-video {
+    background-color: var(--netflix-red);
+    border-color: var(--netflix-red);
+    color: #fff;
+}
+
+.btn-add-new-video:hover {
+    background-color: #f40612;
+    color: #fff;
+}
+
 @media (max-width: 900px) {
     .admin-split-layout {
         grid-template-columns: 1fr;
-        overflow-y: auto;
+        grid-template-rows: 1fr;
+        position: relative;
+        overflow: hidden;
+    }
+
+    /* Por padrão no mobile, mostra apenas a lista em tela cheia */
+    .admin-form-section {
+        display: none;
+    }
+    .admin-list-section {
+        display: flex;
+    }
+
+    /* Quando o formulário está ativo (adicionar/editar), ele ocupa a tela cheia e a lista fica oculta */
+    .admin-split-layout.showing-form .admin-form-section {
+        display: block;
+    }
+    .admin-split-layout.showing-form .admin-list-section {
+        display: none;
+    }
+
+    .btn-back-to-list {
+        display: flex;
     }
 }
 
@@ -1411,15 +1481,18 @@ body {
     padding: 25px 30px;
     border-right: 1px solid var(--border-color);
     overflow-y: auto;
+    min-width: 0;
 }
 
 .admin-list-section {
     padding: 25px 30px;
     overflow-y: auto;
+    overflow-x: hidden;
     background-color: #121212;
     display: flex;
     flex-direction: column;
     gap: 15px;
+    min-width: 0;
 }
 
 .section-subtitle {
@@ -1686,8 +1759,11 @@ body {
 
 .list-section-header {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
+    row-gap: 10px;
+    column-gap: 10px;
     border-bottom: 1px solid var(--border-color);
     padding-bottom: 10px;
 }
@@ -1698,6 +1774,7 @@ body {
 
 .backup-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
 }
 
@@ -1718,6 +1795,90 @@ body {
 .btn-backup:hover {
     background-color: rgba(255,255,255,0.15);
     color: #fff;
+}
+
+/* Caixa de pesquisa de vídeos no painel admin */
+.admin-search-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+    margin-bottom: 4px;
+}
+
+.admin-search-box {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: rgba(255,255,255,0.05);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 8px 12px;
+    transition: border-color var(--transition-fast);
+}
+
+.admin-search-box:focus-within {
+    border-color: var(--netflix-red);
+}
+
+.admin-search-box i[data-lucide="search"] {
+    width: 16px;
+    height: 16px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.admin-search-box input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-color);
+    font-size: 0.85rem;
+    min-width: 0;
+}
+
+.admin-search-box input::placeholder {
+    color: var(--text-muted);
+}
+
+.btn-clear-admin-search {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    flex-shrink: 0;
+}
+
+.btn-clear-admin-search:hover {
+    color: #fff;
+}
+
+.btn-clear-admin-search i {
+    width: 14px;
+    height: 14px;
+}
+
+.admin-search-count {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+@media (max-width: 500px) {
+    .admin-search-row {
+        flex-wrap: wrap;
+    }
+    .admin-search-count {
+        width: 100%;
+        text-align: right;
+    }
 }
 
 /* Linhas de Vídeos Cadastrados */

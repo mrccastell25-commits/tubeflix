@@ -83,11 +83,20 @@ const btnAddInitial = document.getElementById('btn-add-initial');
 const modalPassword = document.getElementById('modal-password');
 const modalAdmin = document.getElementById('modal-admin');
 const playerModal = document.getElementById('player-modal');
-const modalSeriesEpisodes = document.getElementById('modal-series-episodes');
-const closeSeriesEpisodesBtn = document.getElementById('close-series-episodes-btn');
+const modalSeriesEpisodes = document.getElementById('modal-series-episodes');const closeSeriesEpisodesBtn = document.getElementById('close-series-episodes-btn');
 const seriesEpisodesTitle = document.getElementById('series-episodes-title');
 const seriesEpisodesSubtitle = document.getElementById('series-episodes-subtitle');
 const seriesEpisodesList = document.getElementById('series-episodes-list');
+
+// Lightbox de capa (celular) e alternância de densidade da grade
+const posterLightbox = document.getElementById('poster-lightbox');
+const posterLightboxBackdrop = document.getElementById('poster-lightbox-backdrop');
+const posterLightboxClose = document.getElementById('poster-lightbox-close');
+const posterLightboxImage = document.getElementById('poster-lightbox-image');
+const posterLightboxTitleEl = document.getElementById('poster-lightbox-title');
+const posterLightboxMetaEl = document.getElementById('poster-lightbox-meta');
+const posterLightboxWatchBtn = document.getElementById('poster-lightbox-watch');
+const btnToggleGridDensity = document.getElementById('btn-toggle-grid-density');
 const closePassModal = document.getElementById('close-pass-modal');
 const closeAdminModal = document.getElementById('close-admin-modal');
 const closePlayerBtn = document.getElementById('close-player-btn');
@@ -161,6 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     loadYoutubeIFrameAPI();
     toggleSeriesOrderFields();
+    applyGridDensityPreference();
 });
 
 // Efeito de escurecer a navbar ao rolar a página
@@ -292,6 +302,19 @@ function setupEventListeners() {
     modalSeriesEpisodes.addEventListener('click', (e) => {
         if (e.target === modalSeriesEpisodes) closeSeriesEpisodesModal();
     });
+
+    // Lightbox de capa (celular)
+    if (posterLightboxClose) posterLightboxClose.addEventListener('click', closePosterLightbox);
+    if (posterLightboxBackdrop) posterLightboxBackdrop.addEventListener('click', closePosterLightbox);
+
+    // Alternância de densidade da grade (3 vs 4/5 capas por fileira)
+    if (btnToggleGridDensity) {
+        btnToggleGridDensity.addEventListener('click', () => {
+            const isDensity3Now = document.body.classList.contains('grid-density-3');
+            localStorage.setItem('tubeflix_grid_density', isDensity3Now ? '4' : '3');
+            applyGridDensityPreference();
+        });
+    }
 
     // Validação de senha
     btnSubmitPass.addEventListener('click', verifyAdminPassword);
@@ -1088,7 +1111,13 @@ function renderCarouselCards(carouselElement, videos) {
             }
         };
 
-        wrapper.querySelector('.video-card-thumbnail').addEventListener('click', handlePrimaryAction);
+        wrapper.querySelector('.video-card-thumbnail').addEventListener('click', () => {
+            if (isMobileViewport()) {
+                openPosterLightbox(video, isSeriesGroup, cardTitle);
+            } else {
+                handlePrimaryAction();
+            }
+        });
         wrapper.querySelector('.btn-play-card').addEventListener('click', (e) => {
             e.stopPropagation();
             handlePrimaryAction();
@@ -1376,6 +1405,63 @@ function openSeriesEpisodesModal(episodes, representative) {
 function closeSeriesEpisodesModal() {
     modalSeriesEpisodes.classList.add('hidden');
     document.body.style.overflow = 'auto';
+}
+
+// Considera "celular" a mesma largura usada no restante do site para o menu hambúrguer/layout mobile
+function isMobileViewport() {
+    return window.innerWidth <= 860;
+}
+
+// No celular, tocar na capa abre uma prévia ampliada (lightbox) com botão de Assistir e Fechar,
+// em vez de abrir o player direto — evita toques acidentais e dá mais destaque à capa.
+function openPosterLightbox(video, isSeriesGroup, cardTitle) {
+    posterLightboxImage.src = video.imageUrl;
+    posterLightboxImage.setAttribute('style', getPosterImageStyle(video));
+    posterLightboxTitleEl.textContent = cardTitle;
+
+    const matchVal = (100 - (video.title.length % 10)).toString();
+    posterLightboxMetaEl.innerHTML = `
+        <span class="match-score">${matchVal}% Match</span>
+        <span class="age-rating rating-${video.rating.toLowerCase()}">${video.rating === "L" ? "L" : video.rating + "+"}</span>
+        <span class="duration">${isSeriesGroup ? video.episodes.length + ' episódios' : video.duration}</span>
+    `;
+
+    posterLightboxWatchBtn.innerHTML = isSeriesGroup
+        ? `<i data-lucide="list"></i><span>Ver Capítulos</span>`
+        : `<i data-lucide="play" style="fill: currentColor;"></i><span>Assistir</span>`;
+
+    posterLightboxWatchBtn.onclick = () => {
+        closePosterLightbox();
+        if (isSeriesGroup) {
+            openSeriesEpisodesModal(video.episodes, video);
+        } else {
+            openPlayerModal(video);
+        }
+    };
+
+    posterLightbox.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    lucide.createIcons();
+}
+
+function closePosterLightbox() {
+    posterLightbox.classList.add('hidden');
+    document.body.style.overflow = 'auto';
+}
+
+// Lembra a preferência de densidade da grade (3 ou 4/5 capas por fileira) entre visitas
+function applyGridDensityPreference() {
+    const isDensity3 = localStorage.getItem('tubeflix_grid_density') === '3';
+    document.body.classList.toggle('grid-density-3', isDensity3);
+    if (btnToggleGridDensity) {
+        btnToggleGridDensity.innerHTML = isDensity3
+            ? `<i data-lucide="grid-2x2"></i>`
+            : `<i data-lucide="grid-3x3"></i>`;
+        btnToggleGridDensity.title = isDensity3
+            ? "Mostrar mais capas por fileira"
+            : "Mostrar capas maiores (3 por fileira)";
+        lucide.createIcons();
+    }
 }
 
 // Mostrar mais informações do vídeo no modal do player

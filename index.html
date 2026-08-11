@@ -240,6 +240,30 @@
     </div>
 
     <!-- Modal de Lista de Episódios da Série -->
+    <!-- Lightbox de Capa (celular): toque na capa mostra uma prévia ampliada antes de assistir -->
+    <div id="poster-lightbox" class="poster-lightbox hidden">
+        <div class="poster-lightbox-backdrop" id="poster-lightbox-backdrop"></div>
+        <div class="poster-lightbox-card">
+            <button class="poster-lightbox-close" id="poster-lightbox-close" title="Fechar">
+                <i data-lucide="x"></i>
+            </button>
+            <img id="poster-lightbox-image" src="" alt="" class="poster-lightbox-image">
+            <div class="poster-lightbox-info">
+                <span class="poster-lightbox-title" id="poster-lightbox-title"></span>
+                <div class="poster-lightbox-meta" id="poster-lightbox-meta"></div>
+            </div>
+            <button class="poster-lightbox-watch" id="poster-lightbox-watch">
+                <i data-lucide="play" style="fill: currentColor;"></i>
+                <span>Assistir</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Botão flutuante (celular): alterna entre 4 e 3 capas por fileira -->
+    <button id="btn-toggle-grid-density" class="btn-toggle-density" title="Alternar tamanho das capas">
+        <i data-lucide="grid-3x3"></i>
+    </button>
+
     <div id="modal-series-episodes" class="modal-overlay hidden">
         <div class="series-episodes-container">
             <button class="btn-close-player" id="close-series-episodes-btn">

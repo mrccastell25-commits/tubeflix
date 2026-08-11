@@ -476,8 +476,8 @@
                 <i data-lucide="info" style="width: 18px; height: 18px;"></i>
                 <div>
                     <strong>Como funciona a extração?</strong><br>
-                    • <strong>Sem API Key</strong>: tenta carregar a playlist pública diretamente pela página do YouTube, usando paginação interna para alcançar o intervalo solicitado.<br>
-                    • <strong>Com API Key</strong>: usa a API oficial do YouTube v3, com paginação e maior confiabilidade. <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" style="text-decoration:underline; color:#90cdf4;">Crie sua chave de graça no Google Cloud Console</a>.
+                    • <strong>Sem API Key</strong>: tenta carregar a playlist pública "raspando" a página do YouTube via proxies de terceiros. É um método sujeito a falhas (o YouTube pode bloquear, exibir aviso de cookies, ou os proxies podem estar fora do ar) — se der erro, tente novamente em instantes ou use a API Key abaixo.<br>
+                    • <strong>Com API Key (recomendado)</strong>: usa a API oficial do YouTube v3, muito mais confiável e sem depender de proxies externos. <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" style="text-decoration:underline; color:#90cdf4;">Crie sua chave de graça no Google Cloud Console</a> (leva menos de 2 minutos).
                 </div>
             </div>
 
@@ -771,7 +771,9 @@
         }
 
         // 3. Extração sem API Key usando a página pública da playlist + paginação interna.
-        // Observação: esta é uma técnica de fallback. O YouTube pode alterar o formato interno da página.
+        // Observação: esta é uma técnica de fallback que depende de proxies CORS de terceiros e da estrutura
+        // interna (não-oficial) das páginas do YouTube. O YouTube pode alterar esse formato ou os proxies podem
+        // ficar temporariamente indisponíveis/bloqueados — por isso o método com API Key é o mais confiável.
         async function fetchWithPlaylistPage(playlistId, startIndex = 1, endIndex = 30) {
             const wantedCount = endIndex;
             let collected = [];
@@ -788,7 +790,6 @@
                     const playlistUrl = `https://www.youtube.com/playlist?list=${encodeURIComponent(playlistId)}`;
                     const html = await fetchTextThroughProxy(playlistUrl);
                     data = extractYtInitialData(html);
-                    firstRequest = false;
                 } else {
                     data = await fetchYouTubeContinuation(continuation);
                 }
@@ -796,6 +797,22 @@
                 if (!data) break;
 
                 const videos = extractVideosAndContinuation(data);
+
+                // Se a primeiríssima página não retornou NENHUM vídeo, não é um problema de paginação —
+                // é sinal de que o proxy devolveu uma página diferente da esperada (ex: aviso de cookies/consentimento,
+                // captcha, bloqueio regional, ou a playlist é privada/não existe). Falhar rápido com uma mensagem clara
+                // em vez de insistir por até 30 tentativas vazias.
+                if (firstRequest && videos.items.length === 0) {
+                    throw new Error(
+                        "O YouTube não retornou os vídeos da playlist através do proxy usado (pode ter sido bloqueado, " +
+                        "exibido um aviso de cookies/captcha, ou a playlist pode ser privada/inexistente). " +
+                        "Tente novamente em alguns instantes, verifique se o link da playlist está correto e é público, " +
+                        "ou use uma API Key do YouTube (mais confiável) no campo acima."
+                    );
+                }
+
+                firstRequest = false;
+
                 for (const v of videos.items) {
                     if (!collected.some(x => x.videoId === v.videoId)) collected.push(v);
                     if (collected.length >= wantedCount) break;
@@ -806,7 +823,11 @@
             }
 
             if (collected.length < startIndex) {
-                throw new Error(`Não foi possível alcançar o vídeo ${startIndex}. O YouTube pode ter bloqueado a consulta ou alterado a estrutura da playlist.`);
+                throw new Error(
+                    `A playlist parece ter apenas ${collected.length} vídeo(s) acessível(is), menos que o vídeo inicial ` +
+                    `solicitado (${startIndex}). Ajuste o intervalo "Vídeo inicial/final" ou verifique se a playlist tem ` +
+                    `mais vídeos públicos do que isso.`
+                );
             }
 
             const selected = collected.slice(startIndex - 1, endIndex);
@@ -833,19 +854,26 @@
         async function fetchTextThroughProxy(url) {
             const proxies = [
                 `https://corsproxy.io/?${encodeURIComponent(url)}`,
-                `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+                `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+                `https://thingproxy.freeboard.io/fetch/${url}`,
+                `https://cors-anywhere.herokuapp.com/${url}`
             ];
 
             let lastError = null;
             for (const proxyUrl of proxies) {
                 try {
                     const response = await fetch(proxyUrl);
-                    if (response.ok) return await response.text();
+                    if (response.ok) {
+                        const text = await response.text();
+                        // Alguns proxies retornam 200 OK mas com uma página de erro/aviso curta em vez do HTML real
+                        if (text && text.length > 5000) return text;
+                    }
                 } catch (err) {
                     lastError = err;
                 }
             }
-            throw new Error("Não foi possível acessar a página pública da playlist pelos proxies CORS.");
+            throw new Error("Não foi possível acessar a página pública da playlist por nenhum dos proxies CORS disponíveis (todos falharam ou estão temporariamente indisponíveis).");
         }
 
         function extractYtInitialData(html) {
@@ -912,7 +940,8 @@
 
             const proxies = [
                 `https://corsproxy.io/?${encodeURIComponent(endpoint)}`,
-                `https://api.allorigins.win/raw?url=${encodeURIComponent(endpoint)}`
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(endpoint)}`,
+                `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(endpoint)}`
             ];
 
             let lastError = null;

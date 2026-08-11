@@ -641,6 +641,141 @@ body {
     }
 }
 
+/* Alternância de densidade da grade (botão flutuante no celular): 3 capas por fileira, maiores */
+body.grid-density-3 .poster-grid-row .row-carousel {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 12px 10px !important;
+}
+
+.btn-toggle-density {
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    right: 16px;
+    z-index: 150;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background-color: rgba(20, 20, 20, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+    backdrop-filter: blur(6px);
+    cursor: pointer;
+}
+
+.btn-toggle-density:active {
+    background-color: rgba(40, 40, 40, 0.95);
+}
+
+@media (max-width: 900px) {
+    .btn-toggle-density {
+        display: flex;
+    }
+}
+
+/* Lightbox de Capa (celular) */
+.poster-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.poster-lightbox.hidden {
+    display: none;
+}
+
+.poster-lightbox-backdrop {
+    position: absolute;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(3px);
+}
+
+.poster-lightbox-card {
+    position: relative;
+    z-index: 2;
+    width: min(78vw, 340px);
+    background-color: var(--netflix-dark-gray);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.9);
+    animation: zoomIn var(--transition-smooth) forwards;
+    display: flex;
+    flex-direction: column;
+}
+
+.poster-lightbox-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 3;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.65);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.poster-lightbox-image {
+    width: 100%;
+    aspect-ratio: 2/3;
+    object-fit: cover;
+    background-color: #000;
+    display: block;
+}
+
+.poster-lightbox-info {
+    padding: 16px 16px 4px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.poster-lightbox-title {
+    font-family: var(--font-heading);
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.poster-lightbox-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.85rem;
+}
+
+.poster-lightbox-watch {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 14px 16px 16px 16px;
+    background-color: #ffffff;
+    color: #000000;
+    border: none;
+    border-radius: 4px;
+    padding: 12px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.poster-lightbox-watch:active {
+    background-color: rgba(255,255,255,0.8);
+}
+
 .poster-grid-row .video-card-wrapper {
     flex: none;
     width: 100%;

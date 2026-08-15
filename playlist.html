@@ -275,6 +275,56 @@
             max-height: 500px;
         }
 
+        .series-bulk-apply {
+            background-color: rgba(255,255,255,0.04);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .series-bulk-row {
+            display: flex;
+            align-items: flex-end;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .btn-apply-series {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background-color: var(--netflix-red);
+            border: none;
+            color: #fff;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background-color 0.2s ease;
+        }
+
+        .btn-apply-series:hover {
+            background-color: #f40612;
+        }
+
+        .col-episode-order {
+            width: 60px;
+            text-align: center;
+        }
+
+        @media (max-width: 700px) {
+            .series-bulk-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .btn-apply-series {
+                justify-content: center;
+            }
+        }
+
         .videos-table {
             width: 100%;
             border-collapse: collapse;
@@ -513,6 +563,20 @@
                 </div>
             </div>
 
+            <div class="series-bulk-apply">
+                <div class="series-bulk-row">
+                    <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                        <label for="bulk-series-name">Nome da Série (aplica a todos os vídeos abaixo)</label>
+                        <input type="text" id="bulk-series-name" class="form-control" placeholder="Ex: Nome da Série">
+                    </div>
+                    <button type="button" id="btn-apply-series-name" class="btn-apply-series">
+                        <i data-lucide="list-ordered"></i>
+                        <span>Aplicar a todos e numerar em ordem</span>
+                    </button>
+                </div>
+                <span class="input-hint">Marca a categoria de todos os vídeos abaixo como "Série", preenche o nome informado e numera automaticamente 1, 2, 3... seguindo a ordem atual da lista. Depois, se perceber que algum capítulo deve ficar em outra posição, é só ajustar o número dele individualmente na tabela antes de exportar.</span>
+            </div>
+
             <div class="videos-table-container">
                 <table class="videos-table">
                     <thead>
@@ -523,6 +587,8 @@
                             <th style="width: 110px;">Classificação</th>
                             <th style="width: 110px;">Duração</th>
                             <th style="width: 150px;">Canal</th>
+                            <th style="width: 150px;">Nome da Série</th>
+                            <th style="width: 75px;">Ordem</th>
                             <th style="width: 50px; text-align: center;">Excluir</th>
                         </tr>
                     </thead>
@@ -645,6 +711,9 @@
                 const newRating = row.querySelector('.col-rating').value;
                 const newDuration = row.querySelector('.col-duration').value.trim();
                 const newChannel = row.querySelector('.col-channel').value.trim();
+                const newSeriesName = row.querySelector('.col-series-name').value.trim();
+                const newEpisodeOrderRaw = row.querySelector('.col-episode-order').value;
+                const newEpisodeOrder = (newEpisodeOrderRaw !== '') ? parseFloat(newEpisodeOrderRaw) : null;
 
                 // Recriar ficha técnica se a categoria ou título mudaram
                 const customDetails = generateSmartDetails(newTitle, newChannel, newCategory);
@@ -666,8 +735,8 @@
                     imagePosY: 50,
                     imageZoom: 85,
                     featured: false,
-                    seriesName: '',
-                    episodeOrder: null,
+                    seriesName: newSeriesName,
+                    episodeOrder: newEpisodeOrder,
                     createdAt: new Date().getTime() + idx // incrementa para manter ordem de inserção
                 });
             });
@@ -1060,6 +1129,12 @@
                     <td>
                         <input type="text" class="table-input col-channel" value="${escapeHtml(video.director)}">
                     </td>
+                    <td>
+                        <input type="text" class="table-input col-series-name" placeholder="Ex: Nome da Série" value="${escapeHtml(video.seriesName || '')}">
+                    </td>
+                    <td>
+                        <input type="number" class="table-input col-episode-order" min="0" step="1" value="${(video.episodeOrder != null) ? video.episodeOrder : ''}">
+                    </td>
                     <td style="text-align: center;">
                         <button class="btn-delete-row" onclick="deleteTableRow(${idx})" title="Excluir desta importação">
                             <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
@@ -1082,6 +1157,31 @@
                 videoCountSpan.textContent = currentCount - 1;
             }
         };
+
+        // Aplica o nome da série e a ordem sequencial (1, 2, 3...) a todas as linhas visíveis da tabela,
+        // na ordem em que aparecem. O usuário pode ajustar a ordem de linhas individuais depois, antes de exportar.
+        const btnApplySeriesName = document.getElementById('btn-apply-series-name');
+        if (btnApplySeriesName) {
+            btnApplySeriesName.addEventListener('click', () => {
+                const seriesName = document.getElementById('bulk-series-name').value.trim();
+                if (!seriesName) {
+                    alert('Informe o nome da série antes de aplicar.');
+                    return;
+                }
+
+                const rows = videosTbody.querySelectorAll('tr');
+                if (rows.length === 0) {
+                    alert('Não há vídeos na lista para aplicar.');
+                    return;
+                }
+
+                rows.forEach((row, position) => {
+                    row.querySelector('.col-series-name').value = seriesName;
+                    row.querySelector('.col-episode-order').value = position + 1;
+                    row.querySelector('.col-category').value = 'series';
+                });
+            });
+        }
 
         // 5. Utilitários de metadados inteligentes (Cinema Generator)
         function cleanTitle(title) {

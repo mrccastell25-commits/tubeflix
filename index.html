@@ -177,6 +177,9 @@
         </section>
     </main>
 
+    <!-- Notificação temporária (toast) de confirmação -->
+    <div id="app-toast" class="app-toast"></div>
+
     <!-- Modal do Player Cinemático do YouTube -->
     <div id="player-modal" class="modal-overlay hidden">
         <div class="player-modal-container">
@@ -187,6 +190,9 @@
             <div class="video-iframe-wrapper">
                 <!-- Player do YouTube (IFrame API) inserido dinamicamente -->
                 <div id="youtube-player-placeholder"></div>
+
+                <!-- Player genérico para vídeos que não são do YouTube (Vimeo, arquivo direto, outros sites) -->
+                <div id="generic-player-container" class="generic-player-container hidden"></div>
 
                 <!-- Aviso de "Próximo Episódio" com contagem regressiva (apenas para séries) -->
                 <div class="next-episode-overlay hidden" id="next-episode-overlay">
@@ -217,6 +223,10 @@
                         <span class="quality-badge">HD</span>
                     </div>
                     <h2 class="player-video-title" id="modal-video-title">Título Completo do Vídeo</h2>
+                    <a href="#" target="_blank" rel="noopener" id="modal-video-external-link" class="modal-video-external-link hidden">
+                        <i data-lucide="external-link" style="width: 13px; height: 13px;"></i>
+                        Assistir no site original
+                    </a>
                     <p class="player-video-synopsis" id="modal-video-description">
                         Sinopse do vídeo extraída ou adicionada pelo painel administrativo.
                     </p>
@@ -324,15 +334,15 @@
                         <input type="hidden" id="edit-video-id">
                         
                         <div class="form-group">
-                            <label for="new-url">Link do Vídeo do YouTube <span class="required">*</span></label>
+                            <label for="new-url">Link do Vídeo <span class="required">*</span></label>
                             <div class="url-input-wrapper">
-                                <input type="url" id="new-url" class="form-control" required placeholder="https://www.youtube.com/watch?v=...">
+                                <input type="url" id="new-url" class="form-control" required placeholder="https://www.youtube.com/watch?v=... ou link de outro site">
                                 <button type="button" class="btn-fetch-metadata" id="btn-fetch-url" title="Extrair metadados do link">
                                     <i data-lucide="wand2"></i>
                                     <span>Extrair</span>
                                 </button>
                             </div>
-                            <span class="input-hint">Suporta links normais, shorts, mobile ou compartilhados.</span>
+                            <span class="input-hint">YouTube: suporta links normais, shorts, mobile ou compartilhados (título/capa extraídos automaticamente). Também aceita links do Vimeo, vídeos diretos (.mp4/.webm) ou de outros sites — nesses casos, preencha os campos abaixo manualmente.</span>
                         </div>
 
                         <!-- Área de Metadados Extraídos / Editáveis -->

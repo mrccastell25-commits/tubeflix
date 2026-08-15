@@ -54,6 +54,7 @@ let currentPlayingVideo = null; // Vídeo atualmente aberto no player (usado par
 let pendingNextEpisode = null; // Próximo capítulo aguardando confirmação/contagem regressiva
 let nextEpisodeCountdownInterval = null;
 let nextEpisodeSecondsLeft = 10;
+let toastHideTimeout = null;
 
 // Pool de nomes para gerador de elenco simulado
 const actorPool = [
@@ -322,35 +323,63 @@ function setupEventListeners() {
         if (e.key === 'Enter') verifyAdminPassword();
     });
 
-    // Botão de extração rápida do link do YouTube
+    // Botão de extração rápida do link (YouTube, Vimeo, ou outros — cada um com seu próprio comportamento)
     btnFetchUrl.addEventListener('click', async () => {
         const url = newUrlInput.value.trim();
         if (!url) {
-            alert('Por favor, insira uma URL do YouTube válida primeiro.');
+            alert('Por favor, insira um link de vídeo primeiro.');
             return;
         }
 
-        const videoId = extractYouTubeId(url);
-        if (!videoId) {
-            alert('Não foi possível identificar o ID do vídeo do YouTube. Verifique o link.');
+        const source = parseVideoSource(url);
+        if (!source) {
+            alert('Não foi possível reconhecer esse link como um vídeo válido. Verifique se começa com http:// ou https://');
             return;
         }
 
-        // Feedback de carregamento
-        btnFetchUrl.disabled = true;
-        btnFetchUrl.innerHTML = `<div class="spinner" style="width:14px; height:14px; border-width:2px; margin-right:5px;"></div> Buscando...`;
+        if (source.sourceType === 'youtube') {
+            // Feedback de carregamento
+            btnFetchUrl.disabled = true;
+            btnFetchUrl.innerHTML = `<div class="spinner" style="width:14px; height:14px; border-width:2px; margin-right:5px;"></div> Buscando...`;
 
-        const metadata = await getYouTubeMetadata(url);
-        
-        btnFetchUrl.disabled = false;
-        btnFetchUrl.innerHTML = `<i data-lucide="wand2"></i> <span>Extrair</span>`;
-        lucide.createIcons();
+            const metadata = await getYouTubeMetadata(url);
 
-        if (metadata) {
-            fillFormWithMetadata(metadata, videoId);
+            btnFetchUrl.disabled = false;
+            btnFetchUrl.innerHTML = `<i data-lucide="wand2"></i> <span>Extrair</span>`;
+            lucide.createIcons();
+
+            if (metadata) {
+                fillFormWithMetadata(metadata, source.videoId);
+            } else {
+                // Caso falhe o noembed (CORS, limite de rede, etc.), gera localmente
+                fillFormSimulated(source.videoId);
+            }
+        } else if (source.sourceType === 'vimeo') {
+            btnFetchUrl.disabled = true;
+            btnFetchUrl.innerHTML = `<div class="spinner" style="width:14px; height:14px; border-width:2px; margin-right:5px;"></div> Buscando...`;
+
+            const metadata = await getVimeoMetadata(url);
+
+            btnFetchUrl.disabled = false;
+            btnFetchUrl.innerHTML = `<i data-lucide="wand2"></i> <span>Extrair</span>`;
+            lucide.createIcons();
+
+            if (metadata && metadata.title) {
+                document.getElementById('new-title').value = metadata.title;
+                document.getElementById('new-director').value = metadata.author_name || "Vimeo";
+                if (metadata.thumbnail_url) {
+                    newImageUrl.value = metadata.thumbnail_url;
+                    imagePreview.src = metadata.thumbnail_url;
+                }
+                showToast("Título e capa extraídos do Vimeo! Confira e complete os demais campos.");
+            } else {
+                showToast("Não foi possível extrair os dados automaticamente do Vimeo. Preencha os campos manualmente.", { isError: true, duration: 4000 });
+            }
         } else {
-            // Caso falhe o noembed (CORS, limite de rede, etc.), gera localmente
-            fillFormSimulated(videoId);
+            // Link de outro site (arquivo de vídeo direto ou página com player embutido):
+            // não há como extrair automaticamente título/capa de qualquer site, então avisa o
+            // usuário para preencher manualmente os campos abaixo.
+            showToast("Esse link não é do YouTube nem do Vimeo. Preencha o título, categoria e capa manualmente abaixo.", { duration: 4500 });
         }
     });
 
@@ -414,9 +443,14 @@ function setupEventListeners() {
         e.preventDefault();
 
         const editId = editVideoIdInput.value;
+        const rawUrl = newUrlInput.value.trim();
+        const source = parseVideoSource(rawUrl) || { sourceType: null, videoId: null, embedUrl: null };
+
         const videoData = {
-            url: newUrlInput.value.trim(),
-            videoId: extractYouTubeId(newUrlInput.value.trim()),
+            url: rawUrl,
+            sourceType: source.sourceType,
+            videoId: source.videoId,
+            embedUrl: source.embedUrl,
             title: document.getElementById('new-title').value.trim(),
             category: document.getElementById('new-category').value,
             rating: document.getElementById('new-rating').value,
@@ -425,7 +459,7 @@ function setupEventListeners() {
             director: document.getElementById('new-director').value.trim(),
             cast: document.getElementById('new-cast').value.trim(),
             description: document.getElementById('new-description').value.trim(),
-            imageUrl: newImageUrl.value.trim() || `https://img.youtube.com/vi/${extractYouTubeId(newUrlInput.value.trim())}/maxresdefault.jpg`,
+            imageUrl: newImageUrl.value.trim() || (source.sourceType === 'youtube' ? `https://img.youtube.com/vi/${source.videoId}/maxresdefault.jpg` : ''),
             imagePosX: parseFloat(newImagePosX.value) || 50,
             imagePosY: parseFloat(newImagePosY.value) || 50,
             imageZoom: parseFloat(newImageZoom.value) || DEFAULT_POSTER_ZOOM,
@@ -435,8 +469,13 @@ function setupEventListeners() {
             createdAt: new Date().getTime()
         };
 
-        if (!videoData.videoId) {
-            alert("URL do YouTube inválida.");
+        if (!source.sourceType) {
+            alert("Link de vídeo inválido. Verifique se começa com http:// ou https://");
+            return;
+        }
+
+        if (!videoData.imageUrl) {
+            alert("Informe uma imagem de capa para este vídeo (não é possível extraí-la automaticamente para este tipo de link).");
             return;
         }
 
@@ -470,14 +509,14 @@ function setupEventListeners() {
                     allVideos.push({ id: newId, ...videoData });
                 }
                 localStorage.setItem('tubeflix_videos', JSON.stringify(allVideos));
-                alert("Salvo com sucesso (Armazenamento Local)!");
+                showToast(editId ? "Vídeo atualizado com sucesso!" : "Vídeo salvo com sucesso!");
             } else {
                 if (editId) {
                     await database.ref("videos/" + editId).set(videoData);
-                    alert("Vídeo atualizado no Firebase!");
+                    showToast("Vídeo atualizado com sucesso!");
                 } else {
                     await dbRef.push(videoData);
-                    alert("Vídeo adicionado ao Firebase!");
+                    showToast("Vídeo salvo com sucesso!");
                 }
             }
 
@@ -644,6 +683,42 @@ function extractYouTubeId(url) {
     return (match && match[2].length === 11) ? match[2] : null;
 }
 
+// Identifica de onde vem um link de vídeo (YouTube, Vimeo, arquivo de vídeo direto, ou outro site
+// qualquer) e monta as informações necessárias para exibi-lo no player mais adiante.
+// Isso permite cadastrar vídeos de fora do YouTube: basta colar o link, o resto do cadastro
+// (categoria, classificação, série, capa, etc.) funciona exatamente da mesma forma.
+function parseVideoSource(url) {
+    if (!url) return null;
+    const trimmed = url.trim();
+
+    // 1. YouTube (continua usando a API oficial do YouTube: autoplay, próximo episódio automático,
+    // e abrir no YouTube se o embed for bloqueado)
+    const youtubeId = extractYouTubeId(trimmed);
+    if (youtubeId) {
+        return { sourceType: 'youtube', videoId: youtubeId, embedUrl: null };
+    }
+
+    // 2. Vimeo (ex: https://vimeo.com/123456789)
+    const vimeoMatch = trimmed.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
+    if (vimeoMatch) {
+        return { sourceType: 'vimeo', videoId: vimeoMatch[1], embedUrl: `https://player.vimeo.com/video/${vimeoMatch[1]}` };
+    }
+
+    // 3. Arquivo de vídeo direto (.mp4, .webm, .ogg) — usa o player nativo do navegador
+    if (/\.(mp4|webm|ogg)(\?.*)?$/i.test(trimmed)) {
+        return { sourceType: 'direct', videoId: null, embedUrl: trimmed };
+    }
+
+    // 4. Qualquer outro link http(s) — tenta incorporar diretamente em um iframe.
+    // Nem todo site permite ser incorporado (alguns bloqueiam via cabeçalhos de segurança), mas a
+    // grande maioria de players de vídeo de sites de notícia, blogs, etc. funciona dessa forma.
+    if (/^https?:\/\//i.test(trimmed)) {
+        return { sourceType: 'iframe', videoId: null, embedUrl: trimmed };
+    }
+
+    return null;
+}
+
 async function getYouTubeMetadata(videoUrl) {
     try {
         const response = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(videoUrl)}`);
@@ -653,6 +728,19 @@ async function getYouTubeMetadata(videoUrl) {
         return data;
     } catch (e) {
         console.warn("API oEmbed falhou. Usando simulador local de dados.", e);
+        return null;
+    }
+}
+
+// Extração de metadados do Vimeo via oEmbed (funciona sem chave de API, similar ao noembed do YouTube)
+async function getVimeoMetadata(videoUrl) {
+    try {
+        const response = await fetch(`https://vimeo.com/api/oembed.json?url=${encodeURIComponent(videoUrl)}`);
+        if (!response.ok) throw new Error("Erro de resposta.");
+        const data = await response.json();
+        return data;
+    } catch (e) {
+        console.warn("oEmbed do Vimeo falhou (preencha os campos manualmente).", e);
         return null;
     }
 }
@@ -1154,6 +1242,30 @@ window.scrollCarousel = function(carouselId, direction) {
 };
 
 // Gerenciar "Minha Lista"
+// Mostra uma notificação temporária no topo da tela (substitui os alert() de confirmação de sucesso,
+// que exigiam clicar em OK). Some sozinha depois de alguns segundos.
+function showToast(message, options = {}) {
+    const toast = document.getElementById('app-toast');
+    if (!toast) return;
+
+    const duration = options.duration || 3000;
+    const isError = options.isError || false;
+
+    toast.textContent = message;
+    toast.classList.toggle('toast-error', isError);
+
+    // Reinicia a animação mesmo se um toast já estiver visível
+    toast.classList.remove('show');
+    // Força o navegador a recalcular o estilo antes de reaplicar a classe (garante a transição)
+    void toast.offsetWidth;
+    toast.classList.add('show');
+
+    clearTimeout(toastHideTimeout);
+    toastHideTimeout = setTimeout(() => {
+        toast.classList.remove('show');
+    }, duration);
+}
+
 function toggleFavorite(videoId) {
     const index = myFavoriteList.indexOf(videoId);
     if (index > -1) {
@@ -1186,6 +1298,52 @@ window.onYouTubeIframeAPIReady = function() {
 
 // Cria o player do YouTube (via API oficial, necessária para detectar o fim do vídeo) ou reaproveita
 // o player já existente, apenas trocando o vídeo carregado (evita recriar o iframe a cada clique)
+// Decide qual player usar de acordo com a origem do vídeo (YouTube, Vimeo, arquivo direto ou outro
+// site) e o carrega. Vídeos cadastrados antes desse recurso não têm o campo "sourceType" salvo — como
+// todos eles vieram do YouTube e têm "videoId", assumimos 'youtube' nesse caso (compatibilidade).
+function loadPlayerForVideo(video) {
+    const sourceType = video.sourceType || (video.videoId ? 'youtube' : 'iframe');
+    const ytPlaceholder = document.getElementById('youtube-player-placeholder');
+    const genericContainer = document.getElementById('generic-player-container');
+
+    if (sourceType === 'youtube') {
+        genericContainer.innerHTML = '';
+        genericContainer.classList.add('hidden');
+        ytPlaceholder.classList.remove('hidden');
+        // Usa a API oficial do YouTube (necessária para detectar o fim do vídeo e avançar o próximo
+        // capítulo, e para saber quando um vídeo não pode ser incorporado)
+        createOrLoadYoutubePlayer(video.videoId);
+        return;
+    }
+
+    // Para vídeos que não são do YouTube: pausa e esconde o player do YouTube (se houver um tocando)
+    // e mostra o player genérico (iframe ou vídeo direto) no lugar.
+    if (activeYoutubePlayer && typeof activeYoutubePlayer.stopVideo === 'function') {
+        try { activeYoutubePlayer.stopVideo(); } catch (err) { /* player pode não estar pronto ainda */ }
+    }
+    ytPlaceholder.classList.add('hidden');
+    genericContainer.classList.remove('hidden');
+
+    if (sourceType === 'direct') {
+        // Arquivo de vídeo direto (.mp4/.webm/.ogg): usa o player nativo do navegador
+        genericContainer.innerHTML = `<video id="generic-video-element" src="${video.embedUrl}" controls autoplay playsinline></video>`;
+        const videoEl = document.getElementById('generic-video-element');
+        if (videoEl) {
+            // Ao terminar o vídeo, oferece o próximo capítulo da série (mesma lógica usada no YouTube)
+            videoEl.addEventListener('ended', () => {
+                const next = findNextEpisode(currentPlayingVideo);
+                if (next) startNextEpisodeCountdown(next);
+            });
+        }
+    } else if (sourceType === 'vimeo') {
+        genericContainer.innerHTML = `<iframe src="${video.embedUrl}?autoplay=1" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
+    } else {
+        // Link genérico de outro site — nem todo site permite ser incorporado (embutido) em um iframe;
+        // por isso o link "Assistir no site original" fica sempre visível para esses casos.
+        genericContainer.innerHTML = `<iframe src="${video.embedUrl}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
+    }
+}
+
 function createOrLoadYoutubePlayer(videoId) {
     if (typeof YT === 'undefined' || !YT.Player) {
         // A API do YouTube ainda não carregou; guarda o vídeo para tocar assim que ela ficar pronta
@@ -1348,8 +1506,20 @@ function openPlayerModal(video) {
     const matchVal = (100 - (video.title.length % 10)).toString();
     document.getElementById('modal-video-match').textContent = `${matchVal}% Match`;
 
-    // Usa a API oficial do YouTube (necessária para detectar o fim do vídeo e avançar o próximo capítulo)
-    createOrLoadYoutubePlayer(video.videoId);
+    // Link "Assistir no site original": só aparece para vídeos que não são do YouTube, já que não temos
+    // como detectar automaticamente se a incorporação (embed) de um site de terceiros vai falhar
+    // silenciosamente — é um atalho manual de segurança para o usuário caso o player não funcione.
+    const externalLink = document.getElementById('modal-video-external-link');
+    const effectiveSourceType = video.sourceType || (video.videoId ? 'youtube' : 'iframe');
+    if (effectiveSourceType !== 'youtube' && video.url) {
+        externalLink.href = video.url;
+        externalLink.classList.remove('hidden');
+    } else {
+        externalLink.classList.add('hidden');
+    }
+
+    // Carrega o player adequado para a origem do vídeo (YouTube, Vimeo, arquivo direto, ou outro site)
+    loadPlayerForVideo(video);
 }
 
 function closePlayerModal() {
@@ -1363,6 +1533,13 @@ function closePlayerModal() {
     // Interrompe a reprodução/áudio instantaneamente sem destruir o player (reaproveitado na próxima abertura)
     if (activeYoutubePlayer && typeof activeYoutubePlayer.stopVideo === 'function') {
         activeYoutubePlayer.stopVideo();
+    }
+
+    // Limpa o player genérico (iframe do Vimeo/outro site, ou vídeo direto) para interromper a reprodução
+    const genericContainer = document.getElementById('generic-player-container');
+    if (genericContainer) {
+        genericContainer.innerHTML = '';
+        genericContainer.classList.add('hidden');
     }
 }
 
@@ -1577,12 +1754,12 @@ window.deleteVideo = async function(id) {
         if (useLocalStorageFallback) {
             allVideos = allVideos.filter(v => v.id !== id);
             localStorage.setItem('tubeflix_videos', JSON.stringify(allVideos));
-            alert("Vídeo removido localmente!");
+            showToast("Vídeo removido com sucesso!");
             filterAndRenderRows();
             renderAdminList();
         } else {
             await database.ref("videos/" + id).remove();
-            alert("Vídeo removido com sucesso!");
+            showToast("Vídeo removido com sucesso!");
         }
     } catch (e) {
         console.error("Erro ao deletar:", e);
@@ -1658,7 +1835,7 @@ function importLibraryFromJson(e) {
                 });
                 allVideos = allVideos.concat(newVideos);
                 localStorage.setItem('tubeflix_videos', JSON.stringify(allVideos));
-                alert(`${newVideos.length} vídeo(s) importado(s) com sucesso!`);
+                showToast(`${newVideos.length} vídeo(s) importado(s) com sucesso!`);
                 filterAndRenderRows();
                 renderAdminList();
             } else {
@@ -1679,7 +1856,7 @@ function importLibraryFromJson(e) {
                 });
 
                 await dbRef.update(updates);
-                alert(`${importedData.length} vídeo(s) importado(s) no Firebase com sucesso!`);
+                showToast(`${importedData.length} vídeo(s) importado(s) no Firebase com sucesso!`);
             }
         } catch (err) {
             console.error("Erro ao importar JSON:", err);

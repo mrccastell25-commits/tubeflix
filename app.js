@@ -48,6 +48,76 @@ let myFavoriteList = JSON.parse(localStorage.getItem('tubeflix_favorites')) || [
 let activeCategoryFilter = 'todos';
 let currentSearchQuery = '';
 let adminSearchQuery = ''; // Pesquisa dentro do painel administrativo, para localizar um vídeo a editar
+
+// Nomes de categorias personalizáveis (o texto exibido pode mudar; a chave interna "filmes"/"series"/
+// "documentarios"/"tutoriais" nunca muda, para não quebrar os vídeos já cadastrados)
+const DEFAULT_CATEGORY_LABELS = {
+    filmes: 'Filmes',
+    series: 'Séries',
+    documentarios: 'Documentários',
+    tutoriais: 'Tutoriais / Tech'
+};
+
+function getCategoryLabels() {
+    try {
+        const saved = JSON.parse(localStorage.getItem('tubeflix_category_labels'));
+        return { ...DEFAULT_CATEGORY_LABELS, ...(saved || {}) };
+    } catch (e) {
+        return { ...DEFAULT_CATEGORY_LABELS };
+    }
+}
+
+// Aplica os nomes de categoria salvos em todos os lugares onde eles aparecem no site
+function applyCategoryLabels() {
+    const labels = getCategoryLabels();
+
+    // Menu de navegação
+    document.querySelectorAll('.cat-label[data-cat-key]').forEach(el => {
+        const key = el.getAttribute('data-cat-key');
+        if (labels[key]) el.textContent = labels[key];
+    });
+
+    // Dropdown "Categoria" no formulário de cadastro/edição
+    Object.keys(labels).forEach(key => {
+        const option = document.querySelector(`#new-category option[value="${key}"]`);
+        if (option) option.textContent = labels[key];
+    });
+}
+
+// Histórico de reprodução (usado para popular "Minha Lista" com conteúdos assistidos recentemente)
+function recordWatchHistory(videoId) {
+    if (!videoId) return;
+    let history = [];
+    try { history = JSON.parse(localStorage.getItem('tubeflix_watch_history')) || []; } catch (e) { history = []; }
+    history = history.filter(h => h.id !== videoId); // remove entrada antiga do mesmo vídeo, se houver
+    history.unshift({ id: videoId, watchedAt: Date.now() });
+    if (history.length > 50) history = history.slice(0, 50); // limita o tamanho do histórico
+    localStorage.setItem('tubeflix_watch_history', JSON.stringify(history));
+}
+
+function getWatchHistory() {
+    try {
+        const history = JSON.parse(localStorage.getItem('tubeflix_watch_history')) || [];
+        return history.sort((a, b) => b.watchedAt - a.watchedAt);
+    } catch (e) {
+        return [];
+    }
+}
+
+// Monta a lista de vídeos de "Minha Lista": primeiro os assistidos recentemente (mais recente primeiro),
+// depois os favoritados que ainda não foram assistidos
+function getMyListVideos(videos) {
+    const history = getWatchHistory();
+    const historyIds = new Set(history.map(h => h.id));
+
+    const recentlyWatched = history
+        .map(h => videos.find(v => v.id === h.id))
+        .filter(Boolean);
+
+    const favoritesNotWatched = videos.filter(v => myFavoriteList.includes(v.id) && !historyIds.has(v.id));
+
+    return recentlyWatched.concat(favoritesNotWatched);
+}
 let activeYoutubePlayer = null; // Instância do YT.Player quando a API estiver pronta
 let pendingAutoplayVideoId = null; // Guarda o vídeo a carregar caso a API do YouTube ainda não tenha carregado
 let currentPlayingVideo = null; // Vídeo atualmente aberto no player (usado para calcular o próximo capítulo)
@@ -129,6 +199,12 @@ const btnCancelEdit = document.getElementById('btn-cancel-edit');
 const adminSplitLayout = document.getElementById('admin-split-layout');
 const btnBackToList = document.getElementById('btn-back-to-list');
 const btnAddNewVideo = document.getElementById('btn-add-new-video');
+
+// Nomes personalizáveis das categorias
+const btnEditCategories = document.getElementById('btn-edit-categories');
+const categoryLabelsPanel = document.getElementById('category-labels-panel');
+const btnSaveCategoryLabels = document.getElementById('btn-save-category-labels');
+const btnResetCategoryLabels = document.getElementById('btn-reset-category-labels');
 const formActionTitle = document.getElementById('form-action-title');
 const newCategorySelect = document.getElementById('new-category');
 const seriesOrderFields = document.getElementById('series-order-fields');
@@ -172,6 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadYoutubeIFrameAPI();
     toggleSeriesOrderFields();
     applyGridDensityPreference();
+    applyCategoryLabels();
 });
 
 // Efeito de escurecer a navbar ao rolar a página
@@ -290,6 +367,40 @@ function setupEventListeners() {
         btnAddNewVideo.addEventListener('click', () => {
             resetForm();
             showAdminFormView();
+        });
+    }
+
+    // Painel de edição dos nomes das categorias
+    if (btnEditCategories) {
+        btnEditCategories.addEventListener('click', () => {
+            const labels = getCategoryLabels();
+            document.getElementById('cat-label-filmes').value = labels.filmes;
+            document.getElementById('cat-label-series').value = labels.series;
+            document.getElementById('cat-label-documentarios').value = labels.documentarios;
+            document.getElementById('cat-label-tutoriais').value = labels.tutoriais;
+            categoryLabelsPanel.classList.toggle('hidden');
+        });
+    }
+    if (btnSaveCategoryLabels) {
+        btnSaveCategoryLabels.addEventListener('click', () => {
+            const newLabels = {
+                filmes: document.getElementById('cat-label-filmes').value.trim() || DEFAULT_CATEGORY_LABELS.filmes,
+                series: document.getElementById('cat-label-series').value.trim() || DEFAULT_CATEGORY_LABELS.series,
+                documentarios: document.getElementById('cat-label-documentarios').value.trim() || DEFAULT_CATEGORY_LABELS.documentarios,
+                tutoriais: document.getElementById('cat-label-tutoriais').value.trim() || DEFAULT_CATEGORY_LABELS.tutoriais
+            };
+            localStorage.setItem('tubeflix_category_labels', JSON.stringify(newLabels));
+            applyCategoryLabels();
+            categoryLabelsPanel.classList.add('hidden');
+            showToast("Nomes das categorias atualizados!");
+        });
+    }
+    if (btnResetCategoryLabels) {
+        btnResetCategoryLabels.addEventListener('click', () => {
+            document.getElementById('cat-label-filmes').value = DEFAULT_CATEGORY_LABELS.filmes;
+            document.getElementById('cat-label-series').value = DEFAULT_CATEGORY_LABELS.series;
+            document.getElementById('cat-label-documentarios').value = DEFAULT_CATEGORY_LABELS.documentarios;
+            document.getElementById('cat-label-tutoriais').value = DEFAULT_CATEGORY_LABELS.tutoriais;
         });
     }
     if (btnBackToList) {
@@ -994,7 +1105,9 @@ function filterAndRenderRows() {
         // Se o usuário filtrou a categoria "favoritos" (Minha Lista)
         if (activeFilter === 'favoritos') {
             if (row.key === 'destaques') {
-                rowVideos = filteredVideos.filter(v => myFavoriteList.includes(v.id));
+                // "Minha Lista" mostra primeiro os vídeos assistidos recentemente (mais recente primeiro),
+                // seguidos dos favoritados que ainda não foram assistidos
+                rowVideos = getMyListVideos(filteredVideos);
                 const favoriteSection = document.getElementById('section-destaques');
                 favoriteSection.querySelector('.row-title').textContent = "Minha Lista de Vídeos";
                 favoriteSection.classList.remove('hidden');
@@ -1490,12 +1603,16 @@ function openPlayerModal(video) {
     cancelNextEpisodeCountdown();
     currentPlayingVideo = video;
 
+    // Registra no histórico de "assistidos recentemente" (usado para popular a fileira "Minha Lista")
+    recordWatchHistory(video.id);
+
     // Configura as informações do modal
     document.getElementById('modal-video-title').textContent = video.title;
     document.getElementById('modal-video-description').textContent = video.description;
     document.getElementById('modal-video-cast').textContent = video.cast || "Não informado";
     document.getElementById('modal-video-director').textContent = video.director;
-    document.getElementById('modal-video-category').textContent = video.category.toUpperCase();
+    const catLabels = getCategoryLabels();
+    document.getElementById('modal-video-category').textContent = (catLabels[video.category] || video.category).toUpperCase();
     document.getElementById('modal-video-duration').textContent = video.duration;
     document.getElementById('modal-video-year').textContent = video.year;
     

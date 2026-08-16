@@ -315,6 +315,30 @@
             text-align: center;
         }
 
+        .col-episode-order.input-duplicate {
+            border-color: var(--netflix-red) !important;
+            background-color: rgba(237, 28, 36, 0.15) !important;
+            outline: 1px solid var(--netflix-red);
+        }
+
+        .duplicate-order-warning {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+            padding: 10px 12px;
+            background-color: rgba(237, 28, 36, 0.1);
+            border: 1px solid rgba(237, 28, 36, 0.35);
+            border-radius: 6px;
+            color: #ff8a8a;
+            font-size: 0.82rem;
+            font-weight: 600;
+        }
+
+        .duplicate-order-warning.hidden {
+            display: none;
+        }
+
         @media (max-width: 700px) {
             .series-bulk-row {
                 flex-direction: column;
@@ -566,21 +590,28 @@
             <div class="series-bulk-apply">
                 <div class="series-bulk-row">
                     <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                        <label for="bulk-series-name">Nome da Série (aplica a todos os vídeos abaixo)</label>
+                        <label for="bulk-series-name">Nome da Série (aplica às linhas marcadas ✓ abaixo)</label>
                         <input type="text" id="bulk-series-name" class="form-control" placeholder="Ex: Nome da Série">
                     </div>
                     <button type="button" id="btn-apply-series-name" class="btn-apply-series">
                         <i data-lucide="list-ordered"></i>
-                        <span>Aplicar a todos e numerar em ordem</span>
+                        <span>Aplicar às marcadas e numerar em ordem</span>
                     </button>
                 </div>
-                <span class="input-hint">Marca a categoria de todos os vídeos abaixo como "Série", preenche o nome informado e numera automaticamente 1, 2, 3... seguindo a ordem atual da lista. Depois, se perceber que algum capítulo deve ficar em outra posição, é só ajustar o número dele individualmente na tabela antes de exportar.</span>
+                <span class="input-hint">Marca a categoria das linhas selecionadas (checkbox à esquerda de cada uma) como "Série", preenche o nome informado e numera automaticamente 1, 2, 3... seguindo a ordem em que aparecem. Se a playlist tiver mais de uma série misturada, desmarque as linhas que não pertencem a essa série antes de aplicar — repita o processo para cada série separadamente. Ajuste manualmente qualquer capítulo que precise ficar em outra posição.</span>
+                <div id="duplicate-order-warning" class="duplicate-order-warning hidden">
+                    <i data-lucide="alert-triangle" style="width: 16px; height: 16px;"></i>
+                    Existem vídeos da mesma série com o mesmo número de ordem (destacados em vermelho na tabela). Ajuste para que cada capítulo tenha um número único antes de exportar.
+                </div>
             </div>
 
             <div class="videos-table-container">
                 <table class="videos-table">
                     <thead>
                         <tr>
+                            <th style="width: 30px;">
+                                <input type="checkbox" id="select-all-rows" checked title="Selecionar/desmarcar todos">
+                            </th>
                             <th style="width: 90px;">Capa</th>
                             <th>Título</th>
                             <th style="width: 150px;">Categoria</th>
@@ -697,12 +728,25 @@
                 return;
             }
 
+            // Bloqueia a exportação se houver números de ordem duplicados dentro da mesma série
+            // (cada capítulo precisa de um número único e sequencial)
+            checkForDuplicateOrders();
+            const hasDuplicateOrders = videosTbody.querySelector('.input-duplicate') !== null;
+            if (hasDuplicateOrders) {
+                alert("Há vídeos da mesma série com o mesmo número de ordem (destacados em vermelho na tabela). Ajuste os números antes de exportar.");
+                return;
+            }
+
             // Compilar as alterações da tabela de volta para o array de dados
             const rows = videosTbody.querySelectorAll('tr');
             const finalVideos = [];
 
-            rows.forEach((row, idx) => {
-                const video = extractedVideos[idx];
+            rows.forEach((row) => {
+                // Usa o índice original (guardado no id da linha) em vez da posição atual no DOM,
+                // já que excluir uma linha no meio da lista deslocaria os índices e misturaria os dados
+                // de vídeos diferentes (bug corrigido: usar row-video-N como referência estável).
+                const originalIdx = parseInt(row.id.replace('row-video-', ''), 10);
+                const video = extractedVideos[originalIdx];
                 if (!video) return;
 
                 // Capturar valores modificados pelo usuário
@@ -719,7 +763,7 @@
                 const customDetails = generateSmartDetails(newTitle, newChannel, newCategory);
 
                 finalVideos.push({
-                    id: `yt_${video.videoId}_${Date.now()}_${idx}`,
+                    id: `yt_${video.videoId}_${Date.now()}_${originalIdx}`,
                     url: video.url,
                     videoId: video.videoId,
                     title: newTitle,
@@ -737,7 +781,7 @@
                     featured: false,
                     seriesName: newSeriesName,
                     episodeOrder: newEpisodeOrder,
-                    createdAt: new Date().getTime() + idx // incrementa para manter ordem de inserção
+                    createdAt: new Date().getTime() + originalIdx // incrementa para manter ordem de inserção
                 });
             });
 
@@ -1099,6 +1143,9 @@
                 tr.id = `row-video-${idx}`;
                 
                 tr.innerHTML = `
+                    <td style="text-align: center;">
+                        <input type="checkbox" class="row-select-checkbox" checked>
+                    </td>
                     <td>
                         <img src="${video.imageUrl}" alt="capa" class="table-thumb" onerror="this.src='https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg'">
                     </td>
@@ -1145,6 +1192,41 @@
             });
 
             lucide.createIcons();
+            checkForDuplicateOrders();
+        }
+
+        // Verifica se há dois (ou mais) vídeos da MESMA série com o MESMO número de ordem, e destaca
+        // visualmente os campos em conflito, para o usuário corrigir antes de exportar.
+        function checkForDuplicateOrders() {
+            const rows = Array.from(videosTbody.querySelectorAll('tr'));
+            const seen = new Map(); // chave: "nome da série|||ordem" -> lista de inputs
+
+            rows.forEach(row => {
+                const orderInput = row.querySelector('.col-episode-order');
+                const seriesInput = row.querySelector('.col-series-name');
+                orderInput.classList.remove('input-duplicate');
+
+                const seriesName = seriesInput.value.trim().toLowerCase();
+                const order = orderInput.value.trim();
+                if (!seriesName || order === '') return; // só valida quando ambos estão preenchidos
+
+                const key = `${seriesName}|||${order}`;
+                if (!seen.has(key)) seen.set(key, []);
+                seen.get(key).push(orderInput);
+            });
+
+            let hasDuplicates = false;
+            seen.forEach(inputs => {
+                if (inputs.length > 1) {
+                    hasDuplicates = true;
+                    inputs.forEach(input => input.classList.add('input-duplicate'));
+                }
+            });
+
+            const warningEl = document.getElementById('duplicate-order-warning');
+            if (warningEl) {
+                warningEl.classList.toggle('hidden', !hasDuplicates);
+            }
         }
 
         // Remover linha da tabela temporariamente
@@ -1158,8 +1240,9 @@
             }
         };
 
-        // Aplica o nome da série e a ordem sequencial (1, 2, 3...) a todas as linhas visíveis da tabela,
-        // na ordem em que aparecem. O usuário pode ajustar a ordem de linhas individuais depois, antes de exportar.
+        // Aplica o nome da série e a ordem sequencial (1, 2, 3...) às linhas MARCADAS (checkbox) da tabela,
+        // na ordem em que aparecem. Permite separar múltiplas séries misturadas na mesma playlist:
+        // marque só as linhas de uma série, aplique, desmarque-as, marque as da próxima série e aplique de novo.
         const btnApplySeriesName = document.getElementById('btn-apply-series-name');
         if (btnApplySeriesName) {
             btnApplySeriesName.addEventListener('click', () => {
@@ -1169,17 +1252,41 @@
                     return;
                 }
 
-                const rows = videosTbody.querySelectorAll('tr');
-                if (rows.length === 0) {
-                    alert('Não há vídeos na lista para aplicar.');
+                const allRows = Array.from(videosTbody.querySelectorAll('tr'));
+                const selectedRows = allRows.filter(row => row.querySelector('.row-select-checkbox').checked);
+
+                if (selectedRows.length === 0) {
+                    alert('Marque pelo menos uma linha (checkbox à esquerda) para aplicar o nome da série.');
                     return;
                 }
 
-                rows.forEach((row, position) => {
+                selectedRows.forEach((row, position) => {
                     row.querySelector('.col-series-name').value = seriesName;
                     row.querySelector('.col-episode-order').value = position + 1;
                     row.querySelector('.col-category').value = 'series';
                 });
+
+                checkForDuplicateOrders();
+            });
+        }
+
+        // Checkbox "selecionar todos" no cabeçalho da tabela
+        const selectAllCheckbox = document.getElementById('select-all-rows');
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', () => {
+                videosTbody.querySelectorAll('.row-select-checkbox').forEach(cb => {
+                    cb.checked = selectAllCheckbox.checked;
+                });
+            });
+        }
+
+        // Revalida números de ordem duplicados sempre que o usuário editar manualmente
+        // o nome da série ou o número de um capítulo
+        if (videosTbody) {
+            videosTbody.addEventListener('input', (e) => {
+                if (e.target.classList.contains('col-episode-order') || e.target.classList.contains('col-series-name')) {
+                    checkForDuplicateOrders();
+                }
             });
         }
 

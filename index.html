@@ -30,10 +30,10 @@
             <h1 class="logo">TUBE<span>FLIX</span></h1>
             <ul class="nav-links" id="nav-links">
                 <li class="active" data-filter="todos">Início</li>
-                <li data-filter="filmes">Filmes</li>
-                <li data-filter="series">Séries</li>
-                <li data-filter="documentarios">Documentários</li>
-                <li data-filter="tutoriais">Tutoriais / Tech</li>
+                <li data-filter="filmes"><span class="cat-label" data-cat-key="filmes">Filmes</span></li>
+                <li data-filter="series"><span class="cat-label" data-cat-key="series">Séries</span></li>
+                <li data-filter="documentarios"><span class="cat-label" data-cat-key="documentarios">Documentários</span></li>
+                <li data-filter="tutoriais"><span class="cat-label" data-cat-key="tutoriais">Tutoriais / Tech</span></li>
                 <li data-filter="favoritos">Minha Lista</li>
             </ul>
         </div>
@@ -318,9 +318,42 @@
                     <i data-lucide="sliders"></i>
                     <h2 id="admin-modal-title">Painel de Controle - TubeFlix</h2>
                 </div>
-                <button class="btn-close-admin" id="close-admin-modal">
-                    <i data-lucide="x"></i>
-                </button>
+                <div class="admin-header-actions">
+                    <button class="btn-edit-categories" id="btn-edit-categories" title="Renomear categorias">
+                        <i data-lucide="tag"></i>
+                        <span>Categorias</span>
+                    </button>
+                    <button class="btn-close-admin" id="close-admin-modal">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Painel de edição dos nomes das categorias -->
+            <div id="category-labels-panel" class="category-labels-panel hidden">
+                <p class="category-labels-hint">Personalize como cada categoria aparece no menu do site. O tipo de conteúdo continua o mesmo, só o nome exibido muda.</p>
+                <div class="category-labels-grid">
+                    <div class="form-group">
+                        <label for="cat-label-filmes">Categoria "Filmes"</label>
+                        <input type="text" id="cat-label-filmes" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="cat-label-series">Categoria "Séries"</label>
+                        <input type="text" id="cat-label-series" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="cat-label-documentarios">Categoria "Documentários"</label>
+                        <input type="text" id="cat-label-documentarios" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="cat-label-tutoriais">Categoria "Tutoriais / Tech"</label>
+                        <input type="text" id="cat-label-tutoriais" class="form-control">
+                    </div>
+                </div>
+                <div class="category-labels-actions">
+                    <button type="button" id="btn-reset-category-labels" class="btn-cancel-action">Restaurar Padrão</button>
+                    <button type="button" id="btn-save-category-labels" class="btn-auth-submit" style="width:auto; padding: 10px 20px;">Salvar Nomes</button>
+                </div>
             </div>
 
             <div class="admin-split-layout" id="admin-split-layout">

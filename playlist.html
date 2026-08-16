@@ -310,9 +310,20 @@
             background-color: #f40612;
         }
 
-        .col-episode-order {
-            width: 60px;
+        input.col-episode-order {
+            width: 70px;
             text-align: center;
+        }
+
+        /* Remove as setinhas de incremento/decremento nativas do navegador (o campo deve ser só de digitação) */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+            appearance: textfield;
         }
 
         .col-episode-order.input-duplicate {
@@ -619,7 +630,7 @@
                             <th style="width: 110px;">Duração</th>
                             <th style="width: 150px;">Canal</th>
                             <th style="width: 150px;">Nome da Série</th>
-                            <th style="width: 75px;">Ordem</th>
+                            <th style="width: 90px;">Ordem</th>
                             <th style="width: 50px; text-align: center;">Excluir</th>
                         </tr>
                     </thead>
@@ -1180,7 +1191,7 @@
                         <input type="text" class="table-input col-series-name" placeholder="Ex: Nome da Série" value="${escapeHtml(video.seriesName || '')}">
                     </td>
                     <td>
-                        <input type="number" class="table-input col-episode-order" min="0" step="1" value="${(video.episodeOrder != null) ? video.episodeOrder : ''}">
+                        <input type="text" inputmode="numeric" pattern="[0-9]*" class="table-input col-episode-order" value="${(video.episodeOrder != null) ? video.episodeOrder : ''}">
                     </td>
                     <td style="text-align: center;">
                         <button class="btn-delete-row" onclick="deleteTableRow(${idx})" title="Excluir desta importação">
@@ -1284,6 +1295,11 @@
         // o nome da série ou o número de um capítulo
         if (videosTbody) {
             videosTbody.addEventListener('input', (e) => {
+                // Garante que o campo "Ordem" só aceite dígitos (é um campo de texto simples, sem setinhas)
+                if (e.target.classList.contains('col-episode-order')) {
+                    const digitsOnly = e.target.value.replace(/[^0-9]/g, '');
+                    if (digitsOnly !== e.target.value) e.target.value = digitsOnly;
+                }
                 if (e.target.classList.contains('col-episode-order') || e.target.classList.contains('col-series-name')) {
                     checkForDuplicateOrders();
                 }

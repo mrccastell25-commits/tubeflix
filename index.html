@@ -303,7 +303,7 @@
             <div class="form-group">
                 <div class="input-icon-wrapper">
                     <i data-lucide="key" class="input-icon"></i>
-                    <input type="password" id="admin-pass-input" class="form-control" placeholder="Senha (padrão: 123)">
+                    <input type="password" id="admin-pass-input" class="form-control" placeholder="Senha de administrador">
                 </div>
             </div>
             <button id="btn-submit-pass" class="btn-auth-submit">Entrar no Painel</button>
@@ -322,6 +322,10 @@
                     <button class="btn-edit-categories" id="btn-edit-categories" title="Renomear categorias">
                         <i data-lucide="tag"></i>
                         <span>Categorias</span>
+                    </button>
+                    <button class="btn-edit-categories" id="btn-edit-password" title="Trocar a senha do painel">
+                        <i data-lucide="lock"></i>
+                        <span>Senha</span>
                     </button>
                     <button class="btn-close-admin" id="close-admin-modal">
                         <i data-lucide="x"></i>
@@ -353,6 +357,28 @@
                 <div class="category-labels-actions">
                     <button type="button" id="btn-reset-category-labels" class="btn-cancel-action">Restaurar Padrão</button>
                     <button type="button" id="btn-save-category-labels" class="btn-auth-submit" style="width:auto; padding: 10px 20px;">Salvar Nomes</button>
+                </div>
+            </div>
+
+            <!-- Painel de troca de senha do administrador -->
+            <div id="password-change-panel" class="category-labels-panel hidden">
+                <p class="category-labels-hint">Altere a senha usada para entrar no painel administrativo.</p>
+                <div class="category-labels-grid" style="grid-template-columns: repeat(3, 1fr);">
+                    <div class="form-group">
+                        <label for="current-admin-password">Senha Atual</label>
+                        <input type="password" id="current-admin-password" class="form-control" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-admin-password">Nova Senha</label>
+                        <input type="password" id="new-admin-password" class="form-control" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="confirm-admin-password">Confirmar Nova Senha</label>
+                        <input type="password" id="confirm-admin-password" class="form-control" autocomplete="off">
+                    </div>
+                </div>
+                <div class="category-labels-actions">
+                    <button type="button" id="btn-save-admin-password" class="btn-auth-submit" style="width:auto; padding: 10px 20px;">Salvar Nova Senha</button>
                 </div>
             </div>
 
@@ -430,7 +456,7 @@
                                     </div>
                                     <div class="form-group">
                                         <label for="new-episode-order">Ordem / Nº do Episódio <span class="required">*</span></label>
-                                        <input type="number" id="new-episode-order" class="form-control" min="0" step="1" placeholder="Ex: 1">
+                                        <input type="text" inputmode="numeric" pattern="[0-9]*" id="new-episode-order" class="form-control" placeholder="Ex: 1">
                                     </div>
                                 </div>
                                 <span class="input-hint">Use o mesmo "Nome da Série" em todos os capítulos para agrupá-los, e defina a ordem de exibição em cada um. Episódios de séries diferentes não se misturam.</span>

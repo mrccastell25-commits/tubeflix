@@ -42,7 +42,12 @@ try {
 }
 
 // 2. Variáveis de Estado da Aplicação
-const ADMIN_PASSWORD = "123";
+const ADMIN_PASSWORD = "123"; // Senha padrão de fábrica (usada apenas se nenhuma senha customizada foi salva)
+
+// Retorna a senha atual do painel: a customizada pelo admin (se houver), ou a padrão de fábrica
+function getAdminPassword() {
+    return localStorage.getItem('tubeflix_admin_password') || ADMIN_PASSWORD;
+}
 let allVideos = [];
 let myFavoriteList = JSON.parse(localStorage.getItem('tubeflix_favorites')) || [];
 let activeCategoryFilter = 'todos';
@@ -81,6 +86,19 @@ function applyCategoryLabels() {
     Object.keys(labels).forEach(key => {
         const option = document.querySelector(`#new-category option[value="${key}"]`);
         if (option) option.textContent = labels[key];
+    });
+
+    // Títulos das fileiras de conteúdo na tela principal (ex: "Filmes Imperdíveis" -> "Cinema Imperdíveis")
+    const rowTitleTemplates = {
+        filmes: (label) => `${label} Imperdíveis`,
+        series: (label) => `${label} e Episódios`,
+        documentarios: (label) => `${label} Fascinantes`,
+        tutoriais: (label) => `${label}`
+    };
+    Object.keys(rowTitleTemplates).forEach(key => {
+        const section = document.getElementById(`section-${key}`);
+        const titleEl = section ? section.querySelector('.row-title') : null;
+        if (titleEl) titleEl.textContent = rowTitleTemplates[key](labels[key]);
     });
 }
 
@@ -205,6 +223,11 @@ const btnEditCategories = document.getElementById('btn-edit-categories');
 const categoryLabelsPanel = document.getElementById('category-labels-panel');
 const btnSaveCategoryLabels = document.getElementById('btn-save-category-labels');
 const btnResetCategoryLabels = document.getElementById('btn-reset-category-labels');
+
+// Troca de senha do painel administrativo
+const btnEditPassword = document.getElementById('btn-edit-password');
+const passwordChangePanel = document.getElementById('password-change-panel');
+const btnSaveAdminPassword = document.getElementById('btn-save-admin-password');
 const formActionTitle = document.getElementById('form-action-title');
 const newCategorySelect = document.getElementById('new-category');
 const seriesOrderFields = document.getElementById('series-order-fields');
@@ -341,6 +364,14 @@ function setupEventListeners() {
     // Alterna a exibição dos campos de ordenação de série conforme a categoria
     if (newCategorySelect) {
         newCategorySelect.addEventListener('change', toggleSeriesOrderFields);
+
+        // Garante que o campo "Ordem / Nº do Episódio" só aceite dígitos (campo de texto simples, sem setinhas)
+        if (newEpisodeOrder) {
+            newEpisodeOrder.addEventListener('input', () => {
+                const digitsOnly = newEpisodeOrder.value.replace(/[^0-9]/g, '');
+                if (digitsOnly !== newEpisodeOrder.value) newEpisodeOrder.value = digitsOnly;
+            });
+        }
     }
 
     // Botões administrativos
@@ -378,6 +409,7 @@ function setupEventListeners() {
             document.getElementById('cat-label-series').value = labels.series;
             document.getElementById('cat-label-documentarios').value = labels.documentarios;
             document.getElementById('cat-label-tutoriais').value = labels.tutoriais;
+            if (passwordChangePanel) passwordChangePanel.classList.add('hidden');
             categoryLabelsPanel.classList.toggle('hidden');
         });
     }
@@ -401,6 +433,41 @@ function setupEventListeners() {
             document.getElementById('cat-label-series').value = DEFAULT_CATEGORY_LABELS.series;
             document.getElementById('cat-label-documentarios').value = DEFAULT_CATEGORY_LABELS.documentarios;
             document.getElementById('cat-label-tutoriais').value = DEFAULT_CATEGORY_LABELS.tutoriais;
+        });
+    }
+
+    // Painel de troca de senha
+    if (btnEditPassword) {
+        btnEditPassword.addEventListener('click', () => {
+            document.getElementById('current-admin-password').value = '';
+            document.getElementById('new-admin-password').value = '';
+            document.getElementById('confirm-admin-password').value = '';
+            if (categoryLabelsPanel) categoryLabelsPanel.classList.add('hidden');
+            passwordChangePanel.classList.toggle('hidden');
+        });
+    }
+    if (btnSaveAdminPassword) {
+        btnSaveAdminPassword.addEventListener('click', () => {
+            const current = document.getElementById('current-admin-password').value;
+            const newPass = document.getElementById('new-admin-password').value;
+            const confirmPass = document.getElementById('confirm-admin-password').value;
+
+            if (current !== getAdminPassword()) {
+                alert('A senha atual informada está incorreta.');
+                return;
+            }
+            if (!newPass || newPass.length < 3) {
+                alert('A nova senha deve ter pelo menos 3 caracteres.');
+                return;
+            }
+            if (newPass !== confirmPass) {
+                alert('A confirmação não é igual à nova senha. Tente novamente.');
+                return;
+            }
+
+            localStorage.setItem('tubeflix_admin_password', newPass);
+            passwordChangePanel.classList.add('hidden');
+            showToast('Senha alterada com sucesso!');
         });
     }
     if (btnBackToList) {
@@ -775,14 +842,14 @@ async function clearAllFeaturedFlags() {
 
 // 7. Autenticação Administrativa
 function verifyAdminPassword() {
-    if (adminPassInput.value === ADMIN_PASSWORD) {
+    if (adminPassInput.value === getAdminPassword()) {
         modalPassword.classList.add('hidden');
         modalAdmin.classList.remove('hidden');
         resetForm();
         renderAdminList();
         showAdminListView(); // Sempre abre o painel mostrando a lista (relevante no celular)
     } else {
-        alert("Senha incorreta! Use a senha padrão '123'.");
+        alert("Senha incorreta!");
     }
 }
 

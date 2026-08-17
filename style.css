@@ -589,6 +589,32 @@ body {
     opacity: 1;
 }
 
+/* Fileira "Minha Lista": sem setinhas de navegação, rola arrastando com o mouse ou com o dedo */
+#section-destaques .carousel-control {
+    display: none;
+}
+
+#section-destaques .row-carousel {
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+#section-destaques .row-carousel.dragging {
+    cursor: grabbing;
+    scroll-behavior: auto;
+}
+
+#section-destaques .row-carousel.dragging .video-card-wrapper {
+    pointer-events: none;
+}
+
+/* Capa em formato original na fileira "Minha Lista" (sem o recorte/zoom do pôster vertical) */
+.video-card-thumbnail-original {
+    object-fit: contain !important;
+    background-color: #000;
+}
+
 .carousel-control:hover {
     background-color: rgba(0, 0, 0, 0.8);
 }
@@ -1669,6 +1695,45 @@ body.grid-density-3 .poster-grid-row .row-carousel {
     display: flex;
     gap: 10px;
     max-width: 320px;
+}
+
+.custom-category-section {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+}
+
+.custom-categories-list {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.custom-category-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: rgba(255,255,255,0.05);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+}
+
+.btn-delete-custom-category {
+    background: none;
+    border: none;
+    color: var(--netflix-red);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+}
+
+.btn-delete-custom-category:hover {
+    color: #f40612;
 }
 
 @media (max-width: 900px) {

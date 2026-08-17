@@ -72,6 +72,153 @@ function getCategoryLabels() {
     }
 }
 
+// ===== Categorias Personalizadas (criadas pelo admin, além das 4 categorias padrão) =====
+
+function getCustomCategories() {
+    try {
+        return JSON.parse(localStorage.getItem('tubeflix_custom_categories')) || [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function saveCustomCategories(categories) {
+    localStorage.setItem('tubeflix_custom_categories', JSON.stringify(categories));
+}
+
+// Gera uma chave interna estável a partir do nome digitado (sem acentos/espaços/símbolos)
+function slugifyCategoryKey(name) {
+    const base = name
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+    return base || ('categoria_' + Date.now());
+}
+
+function escapeHtmlForCategory(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+// Cria a fileira (seção com carrossel) na página principal para cada categoria personalizada, se ainda não existir
+function renderCustomCategorySections() {
+    const mainContainer = document.getElementById('main-container');
+    if (!mainContainer) return;
+
+    getCustomCategories().forEach(cat => {
+        if (document.getElementById(`section-${cat.key}`)) return; // já existe
+
+        const section = document.createElement('section');
+        section.className = 'video-row-section poster-grid-row';
+        section.id = `section-${cat.key}`;
+        section.innerHTML = `
+            <h3 class="row-title">${escapeHtmlForCategory(cat.label)}</h3>
+            <div class="row-carousel-container">
+                <button class="carousel-control prev" onclick="scrollCarousel('carousel-${cat.key}', -1)">
+                    <i data-lucide="chevron-left"></i>
+                </button>
+                <div class="row-carousel" id="carousel-${cat.key}"></div>
+                <button class="carousel-control next" onclick="scrollCarousel('carousel-${cat.key}', 1)">
+                    <i data-lucide="chevron-right"></i>
+                </button>
+            </div>
+        `;
+        mainContainer.appendChild(section);
+    });
+
+    lucide.createIcons();
+}
+
+// Insere os itens de menu de cada categoria personalizada, sempre antes de "Minha Lista"
+function renderCustomCategoryNavLinks() {
+    if (!navLinksList) return;
+    const favoritosLi = navLinksList.querySelector('li[data-filter="favoritos"]');
+
+    getCustomCategories().forEach(cat => {
+        if (navLinksList.querySelector(`li[data-filter="${cat.key}"]`)) return; // já existe
+
+        const li = document.createElement('li');
+        li.setAttribute('data-filter', cat.key);
+        li.innerHTML = `<span class="cat-label" data-cat-key="${cat.key}">${escapeHtmlForCategory(cat.label)}</span>`;
+        if (favoritosLi) {
+            navLinksList.insertBefore(li, favoritosLi);
+        } else {
+            navLinksList.appendChild(li);
+        }
+    });
+}
+
+// Adiciona a opção correspondente no <select> de categoria do formulário de cadastro/edição
+function renderCustomCategorySelectOptions() {
+    if (!newCategorySelect) return;
+    getCustomCategories().forEach(cat => {
+        if (newCategorySelect.querySelector(`option[value="${cat.key}"]`)) return;
+        const option = document.createElement('option');
+        option.value = cat.key;
+        option.textContent = cat.label;
+        newCategorySelect.appendChild(option);
+    });
+}
+
+// Prepara tudo relacionado às categorias personalizadas: fileira na página, item de menu e opção no formulário
+function setupCustomCategories() {
+    renderCustomCategorySections();
+    renderCustomCategoryNavLinks();
+    renderCustomCategorySelectOptions();
+}
+
+// Lista as categorias personalizadas dentro do painel administrativo, com opção de excluir cada uma
+function renderCustomCategoriesAdminList() {
+    const container = document.getElementById('custom-categories-list');
+    if (!container) return;
+    const categories = getCustomCategories();
+
+    if (categories.length === 0) {
+        container.innerHTML = '<p style="font-size:0.8rem; color:var(--text-muted); margin-top:10px;">Nenhuma categoria personalizada criada ainda.</p>';
+        return;
+    }
+
+    container.innerHTML = categories.map(cat => `
+        <div class="custom-category-item">
+            <span>${escapeHtmlForCategory(cat.label)}</span>
+            <button type="button" class="btn-delete-custom-category" data-key="${cat.key}" title="Excluir categoria">
+                <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+            </button>
+        </div>
+    `).join('');
+
+    lucide.createIcons();
+
+    container.querySelectorAll('.btn-delete-custom-category').forEach(btn => {
+        btn.addEventListener('click', () => deleteCustomCategory(btn.getAttribute('data-key')));
+    });
+}
+
+function deleteCustomCategory(key) {
+    const inUse = allVideos.some(v => v.category === key);
+    if (inUse) {
+        alert('Essa categoria ainda tem vídeos cadastrados nela. Mude a categoria desses vídeos primeiro (editando cada um) antes de excluí-la.');
+        return;
+    }
+
+    if (!confirm('Tem certeza que deseja excluir esta categoria?')) return;
+
+    saveCustomCategories(getCustomCategories().filter(c => c.key !== key));
+
+    const section = document.getElementById(`section-${key}`);
+    if (section) section.remove();
+    const navItem = navLinksList ? navLinksList.querySelector(`li[data-filter="${key}"]`) : null;
+    if (navItem) navItem.remove();
+    const option = newCategorySelect ? newCategorySelect.querySelector(`option[value="${key}"]`) : null;
+    if (option) option.remove();
+
+    renderCustomCategoriesAdminList();
+    filterAndRenderRows();
+    showToast('Categoria excluída.');
+}
+
 // Aplica os nomes de categoria salvos em todos os lugares onde eles aparecem no site
 function applyCategoryLabels() {
     const labels = getCategoryLabels();
@@ -259,6 +406,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Configurar ano no footer
     if (currentYearSpan) currentYearSpan.textContent = new Date().getFullYear();
 
+    // Prepara as categorias personalizadas (fileiras, menu e opção no formulário) ANTES de carregar
+    // os vídeos, para que a primeira renderização já encontre as seções corretas no DOM
+    setupCustomCategories();
+
     // Inicializar Ícones Lucide
     lucide.createIcons();
 
@@ -272,9 +423,49 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleSeriesOrderFields();
     applyGridDensityPreference();
     applyCategoryLabels();
+    enableDragToScroll(document.getElementById('carousel-destaques'));
 });
 
 // Efeito de escurecer a navbar ao rolar a página
+// Permite rolar a fileira "Minha Lista" arrastando com o mouse (desktop) — no celular o toque/swipe
+// já funciona nativamente, já que a fileira tem rolagem horizontal padrão do navegador
+function enableDragToScroll(element) {
+    if (!element) return;
+    let isDragging = false;
+    let startX = 0;
+    let startScrollLeft = 0;
+    let moved = false;
+
+    element.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        moved = false;
+        startX = e.pageX;
+        startScrollLeft = element.scrollLeft;
+        element.classList.add('dragging');
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const delta = e.pageX - startX;
+        if (Math.abs(delta) > 5) moved = true;
+        element.scrollLeft = startScrollLeft - delta;
+    });
+
+    window.addEventListener('mouseup', () => {
+        if (!isDragging) return;
+        isDragging = false;
+        element.classList.remove('dragging');
+    });
+
+    // Evita que o arraste do mouse dispare o clique de abrir o vídeo/lightbox por engano
+    element.addEventListener('click', (e) => {
+        if (moved) {
+            e.stopPropagation();
+            e.preventDefault();
+        }
+    }, true);
+}
+
 function setupNavScroll() {
     window.addEventListener('scroll', () => {
         if (window.scrollY > 20) {
@@ -325,14 +516,14 @@ function setupEventListeners() {
         });
     }
 
-    // Filtros de Categorias no Topo
-    const navLinks = document.querySelectorAll('.nav-links li');
-    navLinks.forEach(link => {
-        link.addEventListener('click', (e) => {
+    // Filtros de Categorias no Topo (delegação de evento: funciona também para categorias
+    // personalizadas criadas pelo admin depois que a página já carregou)
+    if (navLinksList) {
+        navLinksList.addEventListener('click', (e) => {
             const clickedLi = e.target.closest('li[data-filter]');
             if (!clickedLi) return;
 
-            navLinks.forEach(l => l.classList.remove('active'));
+            navLinksList.querySelectorAll('li[data-filter]').forEach(l => l.classList.remove('active'));
             clickedLi.classList.add('active');
             activeCategoryFilter = clickedLi.getAttribute('data-filter');
 
@@ -344,7 +535,7 @@ function setupEventListeners() {
             // Rolar suavemente até a fileira da categoria escolhida
             scrollToActiveCategory();
         });
-    });
+    }
 
     // Menu de Navegação Mobile (Hambúrguer)
     if (navToggleBtn) {
@@ -409,6 +600,7 @@ function setupEventListeners() {
             document.getElementById('cat-label-series').value = labels.series;
             document.getElementById('cat-label-documentarios').value = labels.documentarios;
             document.getElementById('cat-label-tutoriais').value = labels.tutoriais;
+            renderCustomCategoriesAdminList();
             if (passwordChangePanel) passwordChangePanel.classList.add('hidden');
             categoryLabelsPanel.classList.toggle('hidden');
         });
@@ -433,6 +625,38 @@ function setupEventListeners() {
             document.getElementById('cat-label-series').value = DEFAULT_CATEGORY_LABELS.series;
             document.getElementById('cat-label-documentarios').value = DEFAULT_CATEGORY_LABELS.documentarios;
             document.getElementById('cat-label-tutoriais').value = DEFAULT_CATEGORY_LABELS.tutoriais;
+        });
+    }
+
+    // Criar nova categoria personalizada
+    const btnAddCustomCategory = document.getElementById('btn-add-custom-category');
+    if (btnAddCustomCategory) {
+        btnAddCustomCategory.addEventListener('click', () => {
+            const input = document.getElementById('new-custom-category-name');
+            const name = input.value.trim();
+            if (!name) {
+                alert('Digite um nome para a nova categoria.');
+                return;
+            }
+
+            const key = slugifyCategoryKey(name);
+            const reserved = ['todos', 'favoritos', 'filmes', 'series', 'documentarios', 'tutoriais'];
+            const existingCustom = getCustomCategories();
+
+            if (reserved.includes(key) || existingCustom.some(c => c.key === key)) {
+                alert('Já existe uma categoria com esse nome (ou um nome muito parecido). Escolha outro.');
+                return;
+            }
+
+            existingCustom.push({ key, label: name });
+            saveCustomCategories(existingCustom);
+
+            setupCustomCategories();
+            renderCustomCategoriesAdminList();
+            filterAndRenderRows();
+
+            input.value = '';
+            showToast(`Categoria "${name}" criada com sucesso!`);
         });
     }
 
@@ -676,6 +900,8 @@ function setupEventListeners() {
         }
 
         try {
+            let savedId = editId;
+
             if (useLocalStorageFallback) {
                 if (editId) {
                     const index = allVideos.findIndex(v => v.id === editId);
@@ -685,18 +911,27 @@ function setupEventListeners() {
                 } else {
                     const newId = 'local_' + Math.random().toString(36).substr(2, 9);
                     allVideos.push({ id: newId, ...videoData });
+                    savedId = newId;
                 }
                 localStorage.setItem('tubeflix_videos', JSON.stringify(allVideos));
-                showToast(editId ? "Vídeo atualizado com sucesso!" : "Vídeo salvo com sucesso!");
             } else {
                 if (editId) {
                     await database.ref("videos/" + editId).set(videoData);
-                    showToast("Vídeo atualizado com sucesso!");
                 } else {
-                    await dbRef.push(videoData);
-                    showToast("Vídeo salvo com sucesso!");
+                    const pushResult = await dbRef.push(videoData);
+                    savedId = pushResult.key;
                 }
             }
+
+            // Se este for o primeiro capítulo de uma série, replica a capa (imagem/enquadramento)
+            // automaticamente para os demais capítulos já cadastrados dessa mesma série
+            const replicatedCount = await replicateCoverToSeriesSiblings(videoData, savedId);
+
+            let successMessage = editId ? "Vídeo atualizado com sucesso!" : "Vídeo salvo com sucesso!";
+            if (replicatedCount > 0) {
+                successMessage += ` Capa aplicada também a ${replicatedCount} outro${replicatedCount > 1 ? 's' : ''} capítulo${replicatedCount > 1 ? 's' : ''} da série.`;
+            }
+            showToast(successMessage, { duration: replicatedCount > 0 ? 4500 : 3000 });
 
             resetForm();
             if (!useLocalStorageFallback) {
@@ -816,6 +1051,56 @@ function fetchVideos() {
 }
 
 // Limpar flag "featured" de todos os vídeos para garantir apenas um destaque
+// Quando o capítulo de MENOR ordem de uma série é salvo, replica automaticamente sua capa
+// (imagem, posição e zoom) para os demais capítulos já cadastrados dessa mesma série — evita ter
+// que repetir manualmente a mesma capa em cada episódio. Retorna quantos capítulos foram atualizados.
+async function replicateCoverToSeriesSiblings(videoData, currentId) {
+    if (videoData.category !== 'series' || !videoData.seriesName) return 0;
+
+    const normalizedName = videoData.seriesName.trim().toLowerCase();
+    const siblings = allVideos.filter(v =>
+        v.category === 'series' &&
+        v.seriesName &&
+        v.seriesName.trim().toLowerCase() === normalizedName &&
+        v.id !== currentId
+    );
+
+    if (siblings.length === 0) return 0; // ainda não há outros capítulos cadastrados dessa série
+
+    // Só replica se o capítulo salvo for o de MENOR ordem entre todos (o "primeiro" da série)
+    const currentOrder = (videoData.episodeOrder != null) ? videoData.episodeOrder : Infinity;
+    const minSiblingOrder = Math.min(...siblings.map(s => (s.episodeOrder != null) ? s.episodeOrder : Infinity));
+    if (currentOrder > minSiblingOrder) return 0;
+
+    const imageUpdate = {
+        imageUrl: videoData.imageUrl,
+        imagePosX: videoData.imagePosX,
+        imagePosY: videoData.imagePosY,
+        imageZoom: videoData.imageZoom
+    };
+
+    let updatedCount = 0;
+    for (const sibling of siblings) {
+        try {
+            if (useLocalStorageFallback) {
+                const idx = allVideos.findIndex(v => v.id === sibling.id);
+                if (idx > -1) allVideos[idx] = { ...allVideos[idx], ...imageUpdate };
+            } else {
+                await database.ref("videos/" + sibling.id).update(imageUpdate);
+            }
+            updatedCount++;
+        } catch (err) {
+            console.error("Erro ao replicar capa para o capítulo:", sibling.id, err);
+        }
+    }
+
+    if (useLocalStorageFallback && updatedCount > 0) {
+        localStorage.setItem('tubeflix_videos', JSON.stringify(allVideos));
+    }
+
+    return updatedCount;
+}
+
 async function clearAllFeaturedFlags() {
     if (useLocalStorageFallback) {
         allVideos.forEach(v => v.featured = false);
@@ -1135,17 +1420,23 @@ function filterAndRenderRows() {
     const isSearching = currentSearchQuery !== '';
     const activeFilter = activeCategoryFilter;
 
-    // Seletor de categorias e suas respectivas fileiras
+    // Seletor de categorias e suas respectivas fileiras (inclui as categorias personalizadas criadas pelo admin)
     const rows = [
         { key: 'destaques', id: 'section-destaques', filterFn: v => v.featured || v.createdAt },
         { key: 'filmes', id: 'section-filmes', filterFn: v => v.category === 'filmes' },
         { key: 'series', id: 'section-series', filterFn: v => v.category === 'series' },
         { key: 'documentarios', id: 'section-documentarios', filterFn: v => v.category === 'documentarios' },
-        { key: 'tutoriais', id: 'section-tutoriais', filterFn: v => v.category === 'tutoriais' }
+        { key: 'tutoriais', id: 'section-tutoriais', filterFn: v => v.category === 'tutoriais' },
+        ...getCustomCategories().map(cat => ({
+            key: cat.key,
+            id: `section-${cat.key}`,
+            filterFn: v => v.category === cat.key
+        }))
     ];
 
     rows.forEach(row => {
         const section = document.getElementById(row.id);
+        if (!section) return; // segurança: categoria personalizada pode ainda não ter sido renderizada
         const carousel = section.querySelector('.row-carousel');
         
         let rowVideos = filteredVideos.filter(row.filterFn);
@@ -1318,9 +1609,15 @@ function renderCarouselCards(carouselElement, videos) {
         const isSeriesGroup = Array.isArray(video.episodes) && video.episodes.length > 1;
         const cardTitle = isSeriesGroup ? (video.seriesName || video.title) : video.title;
 
+        // A fileira "Minha Lista" mostra a capa no formato original (sem o recorte/zoom configurado
+        // para os pôsteres verticais), para o usuário reconhecer o vídeo como ele salvou originalmente
+        const isMyListRow = (carouselElement.id === 'carousel-destaques');
+        const imgStyleAttr = isMyListRow ? 'object-fit: contain; background-color: #000;' : getPosterImageStyle(video);
+        const imgClass = isMyListRow ? 'video-card-thumbnail video-card-thumbnail-original' : 'video-card-thumbnail';
+
         wrapper.innerHTML = `
             <div class="video-card">
-                <img src="${video.imageUrl}" alt="${cardTitle}" class="video-card-thumbnail" loading="lazy" style="${getPosterImageStyle(video)}">
+                <img src="${video.imageUrl}" alt="${cardTitle}" class="${imgClass}" loading="lazy" style="${imgStyleAttr}">
                 
                 ${isSeriesGroup ? `
                 <div class="series-count-badge">

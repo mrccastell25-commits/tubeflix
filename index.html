@@ -88,7 +88,7 @@
     </header>
 
     <!-- Conteúdo Principal com Fileiras de Categorias -->
-    <main class="main-container">
+    <main class="main-container" id="main-container">
         <div id="no-videos-state" class="empty-library hidden">
             <div class="empty-icon">
                 <i data-lucide="clapperboard"></i>
@@ -357,6 +357,20 @@
                 <div class="category-labels-actions">
                     <button type="button" id="btn-reset-category-labels" class="btn-cancel-action">Restaurar Padrão</button>
                     <button type="button" id="btn-save-category-labels" class="btn-auth-submit" style="width:auto; padding: 10px 20px;">Salvar Nomes</button>
+                </div>
+
+                <div class="custom-category-section">
+                    <p class="category-labels-hint" style="margin-bottom: 10px;">Criar uma nova categoria (além das 4 já existentes):</p>
+                    <div class="series-bulk-row" style="align-items: center;">
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <input type="text" id="new-custom-category-name" class="form-control" placeholder="Ex: Animes, Shows, Infantil...">
+                        </div>
+                        <button type="button" id="btn-add-custom-category" class="btn-apply-series">
+                            <i data-lucide="plus"></i>
+                            <span>Criar Categoria</span>
+                        </button>
+                    </div>
+                    <div id="custom-categories-list" class="custom-categories-list"></div>
                 </div>
             </div>
 

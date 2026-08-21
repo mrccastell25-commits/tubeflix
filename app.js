@@ -19,12 +19,14 @@ const firebaseConfig = {
 // Inicialização segura do Firebase
 let database;
 let dbRef;
-let useLocalStorageFallback = false;
+let settingsRef; // Configurações compartilhadas entre dispositivos: nomes de categoria e categorias personalizadas
+let useLocalStorageFallback = false; // true = Firebase indisponível: nada é salvo, apenas avisamos o usuário
 
 try {
     firebase.initializeApp(firebaseConfig);
     database = firebase.database();
     dbRef = database.ref("videos");
+    settingsRef = database.ref("settings");
 
     // Ativar App Check (opcional, com ReCaptcha)
     try {
@@ -37,22 +39,57 @@ try {
         console.warn("App Check não pôde ser ativado, prosseguindo diretamente.", e);
     }
 } catch (error) {
-    console.error("Falha ao inicializar o Firebase. Usando armazenamento local (LocalStorage).", error);
+    console.error("Falha ao inicializar o Firebase.", error);
     useLocalStorageFallback = true;
 }
 
 // 2. Variáveis de Estado da Aplicação
 const ADMIN_PASSWORD = "123"; // Senha padrão de fábrica (usada apenas se nenhuma senha customizada foi salva)
 
+// ===== Configurações Compartilhadas (Firebase) =====
+// Tudo que é editável pelo administrador (senha, categorias, favoritos, histórico assistido, preferências
+// de exibição) fica guardado no Firebase, sincronizado em tempo real entre TODOS os dispositivos/navegadores.
+// NADA é salvo localmente (localStorage): se o Firebase estiver indisponível, a ação é cancelada e o
+// usuário é avisado para tentar novamente mais tarde — nunca é gravado nada só no navegador.
+let sharedSettings = {
+    adminPassword: null,
+    categoryLabels: {},
+    customCategories: [],
+    favorites: [],
+    watchHistory: [],
+    gridDensity: '4'
+};
+
 // Retorna a senha atual do painel: a customizada pelo admin (se houver), ou a padrão de fábrica
 function getAdminPassword() {
-    return localStorage.getItem('tubeflix_admin_password') || ADMIN_PASSWORD;
+    // Se o Firebase estiver indisponível, usa a senha padrão (não há como saber a customizada sem
+    // salvar nada localmente) — o login/troca de senha ficam bloqueados até o Firebase voltar.
+    return sharedSettings.adminPassword || ADMIN_PASSWORD;
 }
+
+// Mostra um aviso quando uma ação de salvar/editar não pode ser concluída porque o Firebase está
+// indisponível. Por definição, NADA é salvo localmente neste site — se o Firebase não responde,
+// a ação é simplesmente cancelada e o usuário é avisado para tentar novamente mais tarde.
+function warnFirebaseUnavailable() {
+    showToast("Não foi possível conectar ao servidor. Verifique sua internet e tente novamente em instantes.", { isError: true, duration: 5000 });
+}
+
 let allVideos = [];
-let myFavoriteList = JSON.parse(localStorage.getItem('tubeflix_favorites')) || [];
+let myFavoriteList = []; // Sincronizado do Firebase em tempo real — ver saveFavoritesList()
 let activeCategoryFilter = 'todos';
 let currentSearchQuery = '';
 let adminSearchQuery = ''; // Pesquisa dentro do painel administrativo, para localizar um vídeo a editar
+
+// Lista de favoritos ("Minha Lista" por curadoria manual) — salva no Firebase para sincronizar
+// entre todos os dispositivos. Se o Firebase estiver indisponível, a ação é cancelada (nada é salvo
+// localmente) e o usuário é avisado.
+function saveFavoritesList() {
+    if (useLocalStorageFallback) {
+        warnFirebaseUnavailable();
+        return;
+    }
+    settingsRef.child('favorites').set(myFavoriteList);
+}
 
 // Nomes de categorias personalizáveis (o texto exibido pode mudar; a chave interna "filmes"/"series"/
 // "documentarios"/"tutoriais" nunca muda, para não quebrar os vídeos já cadastrados)
@@ -64,26 +101,57 @@ const DEFAULT_CATEGORY_LABELS = {
 };
 
 function getCategoryLabels() {
-    try {
-        const saved = JSON.parse(localStorage.getItem('tubeflix_category_labels'));
-        return { ...DEFAULT_CATEGORY_LABELS, ...(saved || {}) };
-    } catch (e) {
-        return { ...DEFAULT_CATEGORY_LABELS };
-    }
+    return { ...DEFAULT_CATEGORY_LABELS, ...(sharedSettings.categoryLabels || {}) };
 }
 
 // ===== Categorias Personalizadas (criadas pelo admin, além das 4 categorias padrão) =====
 
-function getCustomCategories() {
-    try {
-        return JSON.parse(localStorage.getItem('tubeflix_custom_categories')) || [];
-    } catch (e) {
-        return [];
-    }
+// Sincroniza TODAS as configurações editáveis via Firebase (compartilhado entre TODOS os
+// dispositivos/navegadores). Sem isso, cada aparelho teria sua própria cópia local (era o que causava as
+// mudanças feitas no computador não aparecerem no celular). Guardamos tudo em memória (sharedSettings) —
+// nada é salvo em localStorage.
+function listenToSharedSettings() {
+    if (!settingsRef) return;
+
+    settingsRef.on('value', (snapshot) => {
+        const data = snapshot.val() || {};
+
+        sharedSettings = {
+            adminPassword: data.adminPassword || null,
+            categoryLabels: data.categoryLabels || {},
+            customCategories: data.customCategories || [],
+            favorites: data.favorites || [],
+            watchHistory: data.watchHistory || [],
+            gridDensity: data.gridDensity || '4'
+        };
+        myFavoriteList = sharedSettings.favorites;
+
+        // Reaplica tudo que depende dessas configurações
+        setupCustomCategories();
+        applyCategoryLabels();
+        applyGridDensityPreference();
+        filterAndRenderRows();
+        renderCustomCategoriesAdminList();
+    }, (error) => {
+        console.error("Erro ao ler configurações do Firebase.", error);
+        useLocalStorageFallback = true;
+        showToast("Não foi possível conectar ao servidor. Algumas informações podem não aparecer até a conexão ser restabelecida.", { isError: true, duration: 6000 });
+    });
 }
 
+function getCustomCategories() {
+    return sharedSettings.customCategories || [];
+}
+
+// Salva a lista de categorias personalizadas no Firebase. Se o Firebase estiver indisponível, a ação
+// é cancelada (nada é salvo localmente) e retorna false para o chamador tratar o cancelamento.
 function saveCustomCategories(categories) {
-    localStorage.setItem('tubeflix_custom_categories', JSON.stringify(categories));
+    if (useLocalStorageFallback) {
+        warnFirebaseUnavailable();
+        return false;
+    }
+    settingsRef.child('customCategories').set(categories);
+    return true;
 }
 
 // Gera uma chave interna estável a partir do nome digitado (sem acentos/espaços/símbolos)
@@ -205,7 +273,8 @@ function deleteCustomCategory(key) {
 
     if (!confirm('Tem certeza que deseja excluir esta categoria?')) return;
 
-    saveCustomCategories(getCustomCategories().filter(c => c.key !== key));
+    const saved = saveCustomCategories(getCustomCategories().filter(c => c.key !== key));
+    if (!saved) return; // Firebase indisponível: já avisamos, não finge que excluiu a categoria
 
     const section = document.getElementById(`section-${key}`);
     if (section) section.remove();
@@ -250,38 +319,31 @@ function applyCategoryLabels() {
 }
 
 // Histórico de reprodução (usado para popular "Minha Lista" com conteúdos assistidos recentemente)
+const WATCH_HISTORY_LIMIT = 20; // "Minha Lista" mostra só os últimos 20 conteúdos assistidos
+
 function recordWatchHistory(videoId) {
-    if (!videoId) return;
-    let history = [];
-    try { history = JSON.parse(localStorage.getItem('tubeflix_watch_history')) || []; } catch (e) { history = []; }
+    if (!videoId || useLocalStorageFallback) return; // sem Firebase, não há onde registrar (nada fica local)
+    let history = getWatchHistory();
     history = history.filter(h => h.id !== videoId); // remove entrada antiga do mesmo vídeo, se houver
     history.unshift({ id: videoId, watchedAt: Date.now() });
-    if (history.length > 50) history = history.slice(0, 50); // limita o tamanho do histórico
-    localStorage.setItem('tubeflix_watch_history', JSON.stringify(history));
+    if (history.length > WATCH_HISTORY_LIMIT) history = history.slice(0, WATCH_HISTORY_LIMIT);
+
+    sharedSettings.watchHistory = history; // atualização otimista local, imediata na tela
+    settingsRef.child('watchHistory').set(history);
 }
 
 function getWatchHistory() {
-    try {
-        const history = JSON.parse(localStorage.getItem('tubeflix_watch_history')) || [];
-        return history.sort((a, b) => b.watchedAt - a.watchedAt);
-    } catch (e) {
-        return [];
-    }
+    const history = sharedSettings.watchHistory || [];
+    return [...history].sort((a, b) => b.watchedAt - a.watchedAt);
 }
 
-// Monta a lista de vídeos de "Minha Lista": primeiro os assistidos recentemente (mais recente primeiro),
-// depois os favoritados que ainda não foram assistidos
+// Monta a lista de vídeos de "Minha Lista": os últimos 20 assistidos, do mais recente para o mais antigo
 function getMyListVideos(videos) {
-    const history = getWatchHistory();
-    const historyIds = new Set(history.map(h => h.id));
+    const history = getWatchHistory().slice(0, WATCH_HISTORY_LIMIT);
 
-    const recentlyWatched = history
+    return history
         .map(h => videos.find(v => v.id === h.id))
         .filter(Boolean);
-
-    const favoritesNotWatched = videos.filter(v => myFavoriteList.includes(v.id) && !historyIds.has(v.id));
-
-    return recentlyWatched.concat(favoritesNotWatched);
 }
 let activeYoutubePlayer = null; // Instância do YT.Player quando a API estiver pronta
 let pendingAutoplayVideoId = null; // Guarda o vídeo a carregar caso a API do YouTube ainda não tenha carregado
@@ -333,6 +395,17 @@ const posterLightboxTitleEl = document.getElementById('poster-lightbox-title');
 const posterLightboxMetaEl = document.getElementById('poster-lightbox-meta');
 const posterLightboxWatchBtn = document.getElementById('poster-lightbox-watch');
 const btnToggleGridDensity = document.getElementById('btn-toggle-grid-density');
+
+// Modal "Escolha por Mim" (pião 3D)
+const btnRandomPickHero = document.getElementById('btn-random-pick-hero');
+const modalRandomPick = document.getElementById('modal-random-pick');
+const closeRandomPickBtn = document.getElementById('close-random-pick-btn');
+const randomPickDrum = document.getElementById('random-pick-drum');
+const randomPickStatusTitle = document.getElementById('random-pick-status-title');
+const randomPickResult = document.getElementById('random-pick-result');
+const randomPickResultTitle = document.getElementById('random-pick-result-title');
+const btnRandomPickWatch = document.getElementById('btn-random-pick-watch');
+const btnRandomPickAgain = document.getElementById('btn-random-pick-again');
 const closePassModal = document.getElementById('close-pass-modal');
 const closeAdminModal = document.getElementById('close-admin-modal');
 const closePlayerBtn = document.getElementById('close-player-btn');
@@ -410,6 +483,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // os vídeos, para que a primeira renderização já encontre as seções corretas no DOM
     setupCustomCategories();
 
+    // Sincroniza nomes/categorias personalizadas entre todos os dispositivos via Firebase
+    if (!useLocalStorageFallback) {
+        listenToSharedSettings();
+    }
+
     // Inicializar Ícones Lucide
     lucide.createIcons();
 
@@ -423,49 +501,9 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleSeriesOrderFields();
     applyGridDensityPreference();
     applyCategoryLabels();
-    enableDragToScroll(document.getElementById('carousel-destaques'));
 });
 
 // Efeito de escurecer a navbar ao rolar a página
-// Permite rolar a fileira "Minha Lista" arrastando com o mouse (desktop) — no celular o toque/swipe
-// já funciona nativamente, já que a fileira tem rolagem horizontal padrão do navegador
-function enableDragToScroll(element) {
-    if (!element) return;
-    let isDragging = false;
-    let startX = 0;
-    let startScrollLeft = 0;
-    let moved = false;
-
-    element.addEventListener('mousedown', (e) => {
-        isDragging = true;
-        moved = false;
-        startX = e.pageX;
-        startScrollLeft = element.scrollLeft;
-        element.classList.add('dragging');
-    });
-
-    window.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-        const delta = e.pageX - startX;
-        if (Math.abs(delta) > 5) moved = true;
-        element.scrollLeft = startScrollLeft - delta;
-    });
-
-    window.addEventListener('mouseup', () => {
-        if (!isDragging) return;
-        isDragging = false;
-        element.classList.remove('dragging');
-    });
-
-    // Evita que o arraste do mouse dispare o clique de abrir o vídeo/lightbox por engano
-    element.addEventListener('click', (e) => {
-        if (moved) {
-            e.stopPropagation();
-            e.preventDefault();
-        }
-    }, true);
-}
-
 function setupNavScroll() {
     window.addEventListener('scroll', () => {
         if (window.scrollY > 20) {
@@ -613,8 +651,17 @@ function setupEventListeners() {
                 documentarios: document.getElementById('cat-label-documentarios').value.trim() || DEFAULT_CATEGORY_LABELS.documentarios,
                 tutoriais: document.getElementById('cat-label-tutoriais').value.trim() || DEFAULT_CATEGORY_LABELS.tutoriais
             };
-            localStorage.setItem('tubeflix_category_labels', JSON.stringify(newLabels));
+
+            if (useLocalStorageFallback) {
+                warnFirebaseUnavailable();
+                return;
+            }
+
+            sharedSettings.categoryLabels = newLabels; // atualização otimista local, imediata na tela
             applyCategoryLabels();
+            // Salva no Firebase: o listener em tempo real atualiza este e todos os outros dispositivos
+            settingsRef.child('categoryLabels').set(newLabels);
+
             categoryLabelsPanel.classList.add('hidden');
             showToast("Nomes das categorias atualizados!");
         });
@@ -649,7 +696,8 @@ function setupEventListeners() {
             }
 
             existingCustom.push({ key, label: name });
-            saveCustomCategories(existingCustom);
+            const saved = saveCustomCategories(existingCustom);
+            if (!saved) return; // Firebase indisponível: já avisamos, não finge que criou a categoria
 
             setupCustomCategories();
             renderCustomCategoriesAdminList();
@@ -689,7 +737,12 @@ function setupEventListeners() {
                 return;
             }
 
-            localStorage.setItem('tubeflix_admin_password', newPass);
+            if (useLocalStorageFallback) {
+                warnFirebaseUnavailable();
+                return;
+            }
+            sharedSettings.adminPassword = newPass; // atualização otimista local
+            settingsRef.child('adminPassword').set(newPass);
             passwordChangePanel.classList.add('hidden');
             showToast('Senha alterada com sucesso!');
         });
@@ -710,11 +763,39 @@ function setupEventListeners() {
     if (posterLightboxClose) posterLightboxClose.addEventListener('click', closePosterLightbox);
     if (posterLightboxBackdrop) posterLightboxBackdrop.addEventListener('click', closePosterLightbox);
 
+    // "Escolha por Mim" (pião 3D)
+    if (btnRandomPickHero) {
+        btnRandomPickHero.addEventListener('click', openRandomPickModal);
+    }
+    if (closeRandomPickBtn) {
+        closeRandomPickBtn.addEventListener('click', closeRandomPickModal);
+    }
+    if (btnRandomPickWatch) {
+        btnRandomPickWatch.addEventListener('click', () => {
+            if (randomPickWinnerVideo) {
+                closeRandomPickModal();
+                openPlayerModal(randomPickWinnerVideo);
+            }
+        });
+    }
+    if (btnRandomPickAgain) {
+        btnRandomPickAgain.addEventListener('click', () => {
+            const pool = allVideos.filter(v => v.imageUrl);
+            spinRandomPickDrum(pool);
+        });
+    }
+
     // Alternância de densidade da grade (3 vs 4/5 capas por fileira)
     if (btnToggleGridDensity) {
         btnToggleGridDensity.addEventListener('click', () => {
+            if (useLocalStorageFallback) {
+                warnFirebaseUnavailable();
+                return;
+            }
             const isDensity3Now = document.body.classList.contains('grid-density-3');
-            localStorage.setItem('tubeflix_grid_density', isDensity3Now ? '4' : '3');
+            const newDensity = isDensity3Now ? '4' : '3';
+            sharedSettings.gridDensity = newDensity; // atualização otimista local, imediata na tela
+            settingsRef.child('gridDensity').set(newDensity);
             applyGridDensityPreference();
         });
     }
@@ -894,6 +975,12 @@ function setupEventListeners() {
             }
         }
 
+        // Se o Firebase estiver indisponível, cancela o salvamento (nada é salvo localmente)
+        if (useLocalStorageFallback) {
+            warnFirebaseUnavailable();
+            return;
+        }
+
         // Se este vídeo for Destaque Principal, desativa os outros
         if (videoData.featured) {
             await clearAllFeaturedFlags();
@@ -902,25 +989,11 @@ function setupEventListeners() {
         try {
             let savedId = editId;
 
-            if (useLocalStorageFallback) {
-                if (editId) {
-                    const index = allVideos.findIndex(v => v.id === editId);
-                    if (index > -1) {
-                        allVideos[index] = { id: editId, ...videoData };
-                    }
-                } else {
-                    const newId = 'local_' + Math.random().toString(36).substr(2, 9);
-                    allVideos.push({ id: newId, ...videoData });
-                    savedId = newId;
-                }
-                localStorage.setItem('tubeflix_videos', JSON.stringify(allVideos));
+            if (editId) {
+                await database.ref("videos/" + editId).set(videoData);
             } else {
-                if (editId) {
-                    await database.ref("videos/" + editId).set(videoData);
-                } else {
-                    const pushResult = await dbRef.push(videoData);
-                    savedId = pushResult.key;
-                }
+                const pushResult = await dbRef.push(videoData);
+                savedId = pushResult.key;
             }
 
             // Se este for o primeiro capítulo de uma série, replica a capa (imagem/enquadramento)
@@ -934,18 +1007,13 @@ function setupEventListeners() {
             showToast(successMessage, { duration: replicatedCount > 0 ? 4500 : 3000 });
 
             resetForm();
-            if (!useLocalStorageFallback) {
-                // O Firebase fará o update dinâmico no on('value')
-            } else {
-                filterAndRenderRows();
-                renderAdminList();
-            }
+            // O Firebase fará a atualização da tela dinamicamente via on('value')
             // Permanece no painel administrativo após salvar (não fecha o modal nem exige senha novamente),
             // mas no celular volta para a lista em tela cheia (não fica preso na tela do formulário)
             showAdminListView();
         } catch (error) {
             console.error("Erro ao salvar:", error);
-            alert("Ocorreu um erro ao salvar o vídeo.");
+            alert("Ocorreu um erro ao salvar o vídeo. Tente novamente em instantes.");
         }
     });
 
@@ -1018,11 +1086,12 @@ function toggleSeriesOrderFields() {
     seriesOrderFields.classList.toggle('hidden', !isSeries);
 }
 
-// 6. Carregar Dados de Vídeos (Firebase ou LocalStorage)
+// 6. Carregar Dados de Vídeos (somente Firebase — nada é salvo/lido localmente)
 function fetchVideos() {
     if (useLocalStorageFallback) {
-        allVideos = JSON.parse(localStorage.getItem('tubeflix_videos')) || [];
+        allVideos = [];
         filterAndRenderRows();
+        showFirebaseUnavailableBanner();
         return;
     }
 
@@ -1031,7 +1100,11 @@ function fetchVideos() {
         const data = snapshot.val();
         if (data) {
             Object.keys(data).forEach((key) => {
-                allVideos.push({ id: key, ...data[key] });
+                // Ignora entradas nulas/vazias (ex: um filho removido que ainda aparece momentaneamente
+                // como null durante a sincronização) para não quebrar a renderização com vídeos incompletos
+                if (data[key] && typeof data[key] === 'object' && data[key].title) {
+                    allVideos.push({ id: key, ...data[key] });
+                }
             });
         }
 
@@ -1043,11 +1116,25 @@ function fetchVideos() {
             renderAdminList();
         }
     }, (error) => {
-        console.error("Erro ao ler do Firebase. Ativando fallback local.", error);
+        console.error("Erro ao ler do Firebase.", error);
         useLocalStorageFallback = true;
-        allVideos = JSON.parse(localStorage.getItem('tubeflix_videos')) || [];
+        allVideos = [];
         filterAndRenderRows();
+        showFirebaseUnavailableBanner();
     });
+}
+
+// Mostra um aviso fixo no topo da página quando o Firebase está inacessível, já que sem ele o site
+// não tem nenhum dado para exibir (nada fica salvo/guardado localmente como alternativa)
+function showFirebaseUnavailableBanner() {
+    if (document.getElementById('firebase-unavailable-banner')) return; // já está visível
+    const banner = document.createElement('div');
+    banner.id = 'firebase-unavailable-banner';
+    banner.className = 'firebase-unavailable-banner';
+    banner.innerHTML = `<i data-lucide="wifi-off" style="width:16px;height:16px;"></i> Não foi possível conectar ao servidor. Verifique sua internet — o conteúdo será carregado automaticamente assim que a conexão voltar.`;
+    document.body.prepend(banner);
+    document.body.classList.add('firebase-banner-active');
+    lucide.createIcons();
 }
 
 // Limpar flag "featured" de todos os vídeos para garantir apenas um destaque
@@ -1082,32 +1169,17 @@ async function replicateCoverToSeriesSiblings(videoData, currentId) {
     let updatedCount = 0;
     for (const sibling of siblings) {
         try {
-            if (useLocalStorageFallback) {
-                const idx = allVideos.findIndex(v => v.id === sibling.id);
-                if (idx > -1) allVideos[idx] = { ...allVideos[idx], ...imageUpdate };
-            } else {
-                await database.ref("videos/" + sibling.id).update(imageUpdate);
-            }
+            await database.ref("videos/" + sibling.id).update(imageUpdate);
             updatedCount++;
         } catch (err) {
             console.error("Erro ao replicar capa para o capítulo:", sibling.id, err);
         }
     }
 
-    if (useLocalStorageFallback && updatedCount > 0) {
-        localStorage.setItem('tubeflix_videos', JSON.stringify(allVideos));
-    }
-
     return updatedCount;
 }
 
 async function clearAllFeaturedFlags() {
-    if (useLocalStorageFallback) {
-        allVideos.forEach(v => v.featured = false);
-        localStorage.setItem('tubeflix_videos', JSON.stringify(allVideos));
-        return;
-    }
-
     try {
         const snapshot = await dbRef.once('value');
         const data = snapshot.val();
@@ -1408,6 +1480,7 @@ function filterAndRenderRows() {
     if (allVideos.length === 0) {
         noVideosState.classList.remove('hidden');
         document.querySelectorAll('.video-row-section').forEach(sec => sec.classList.add('hidden'));
+        document.getElementById('hero-banner').classList.add('hidden');
         return;
     } else {
         noVideosState.classList.add('hidden');
@@ -1534,11 +1607,11 @@ function groupAndSortSeriesEpisodes(videos) {
 
 // Configurar o Banner de Destaque
 function setupHeroBanner() {
-    let featuredVideo = allVideos.find(v => v.featured);
+    let featuredVideo = allVideos.find(v => v.featured && v.title);
     
     // Se não houver vídeo explicitamente marcado como destaque, escolhe o primeiro da lista
-    if (!featuredVideo && allVideos.length > 0) {
-        featuredVideo = allVideos[0];
+    if (!featuredVideo) {
+        featuredVideo = allVideos.find(v => v.title);
     }
 
     if (!featuredVideo) {
@@ -1570,22 +1643,15 @@ function setupHeroBanner() {
     heroRating.className = `age-rating rating-${featuredVideo.rating.toLowerCase()}`;
     heroRating.textContent = featuredVideo.rating === "L" ? "L" : `${featuredVideo.rating}+`;
 
-    // Eventos dos botões do Hero
-    // Busca os elementos atuais no DOM (podem já ter sido substituídos em uma chamada anterior) para
+    // Eventos do botão "Assistir" do Hero
+    // Busca o elemento atual no DOM (pode já ter sido substituído em uma chamada anterior) para
     // evitar erro ao tentar substituir um nó que não está mais no DOM
     const currentPlayBtn = document.getElementById('hero-play-btn');
-    const currentInfoBtn = document.getElementById('hero-info-btn');
     const newPlayBtn = currentPlayBtn.cloneNode(true);
-    const newInfoBtn = currentInfoBtn.cloneNode(true);
     currentPlayBtn.parentNode.replaceChild(newPlayBtn, currentPlayBtn);
-    currentInfoBtn.parentNode.replaceChild(newInfoBtn, currentInfoBtn);
 
     document.getElementById('hero-play-btn').addEventListener('click', () => {
         openPlayerModal(featuredVideo);
-    });
-
-    document.getElementById('hero-info-btn').addEventListener('click', () => {
-        openVideoDetails(featuredVideo);
     });
 }
 
@@ -1609,15 +1675,9 @@ function renderCarouselCards(carouselElement, videos) {
         const isSeriesGroup = Array.isArray(video.episodes) && video.episodes.length > 1;
         const cardTitle = isSeriesGroup ? (video.seriesName || video.title) : video.title;
 
-        // A fileira "Minha Lista" mostra a capa no formato original (sem o recorte/zoom configurado
-        // para os pôsteres verticais), para o usuário reconhecer o vídeo como ele salvou originalmente
-        const isMyListRow = (carouselElement.id === 'carousel-destaques');
-        const imgStyleAttr = isMyListRow ? 'object-fit: contain; background-color: #000;' : getPosterImageStyle(video);
-        const imgClass = isMyListRow ? 'video-card-thumbnail video-card-thumbnail-original' : 'video-card-thumbnail';
-
         wrapper.innerHTML = `
             <div class="video-card">
-                <img src="${video.imageUrl}" alt="${cardTitle}" class="${imgClass}" loading="lazy" style="${imgStyleAttr}">
+                <img src="${video.imageUrl}" alt="${cardTitle}" class="video-card-thumbnail" loading="lazy" style="${getPosterImageStyle(video)}">
                 
                 ${isSeriesGroup ? `
                 <div class="series-count-badge">
@@ -1750,7 +1810,7 @@ function toggleFavorite(videoId) {
     } else {
         myFavoriteList.push(videoId);
     }
-    localStorage.setItem('tubeflix_favorites', JSON.stringify(myFavoriteList));
+    saveFavoritesList();
     filterAndRenderRows();
 }
 
@@ -2107,9 +2167,82 @@ function closePosterLightbox() {
     document.body.style.overflow = 'auto';
 }
 
+// ===== "Escolha por Mim": pião 3D girando com as capas, sorteando um vídeo =====
+let randomPickWinnerVideo = null;
+let randomPickSpinTimeout = null;
+
+function openRandomPickModal() {
+    const pool = allVideos.filter(v => v.imageUrl);
+    if (pool.length === 0) {
+        alert('Cadastre alguns vídeos primeiro para poder usar o sorteio.');
+        return;
+    }
+
+    modalRandomPick.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    spinRandomPickDrum(pool);
+}
+
+function closeRandomPickModal() {
+    modalRandomPick.classList.add('hidden');
+    document.body.style.overflow = 'auto';
+    clearTimeout(randomPickSpinTimeout);
+}
+
+function spinRandomPickDrum(pool) {
+    randomPickResult.classList.add('hidden');
+    randomPickStatusTitle.textContent = 'Girando para escolher algo pra você...';
+    randomPickStatusTitle.style.display = '';
+
+    // Sorteia até 10 capas para compor o pião (sem repetir vídeo)
+    const FACE_COUNT = Math.min(10, pool.length);
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    const faces = shuffled.slice(0, FACE_COUNT);
+    const winnerIndex = Math.floor(Math.random() * FACE_COUNT);
+    randomPickWinnerVideo = faces[winnerIndex];
+
+    // Monta as capas ao redor do pião (círculo 3D)
+    const anglePerFace = 360 / FACE_COUNT;
+    // Raio proporcional ao número de capas, para não ficarem sobrepostas
+    const radius = Math.round(70 / Math.tan(Math.PI / FACE_COUNT));
+
+    randomPickDrum.innerHTML = faces.map((v, i) => `
+        <div class="drum-face" style="transform: rotateY(${i * anglePerFace}deg) translateZ(${radius}px);">
+            <img src="${v.imageUrl}" alt="${v.title}" style="${getPosterImageStyle(v)}">
+        </div>
+    `).join('');
+
+    // Reseta a rotação instantaneamente (sem transição) antes de girar de novo
+    randomPickDrum.style.transition = 'none';
+    randomPickDrum.style.transform = 'rotateY(0deg)';
+    void randomPickDrum.offsetWidth; // força o navegador a recalcular antes da próxima transform
+
+    // Gira várias voltas completas e desacelera lentamente até parar com a capa sorteada de frente
+    const extraSpins = 6 + Math.floor(Math.random() * 3); // 6 a 8 voltas completas
+    const finalAngle = -(winnerIndex * anglePerFace) - (360 * extraSpins);
+    const spinDurationMs = 4200;
+
+    randomPickDrum.style.transition = `transform ${spinDurationMs}ms cubic-bezier(0.12, 0.85, 0.18, 1)`;
+    requestAnimationFrame(() => {
+        randomPickDrum.style.transform = `rotateY(${finalAngle}deg)`;
+    });
+
+    clearTimeout(randomPickSpinTimeout);
+    randomPickSpinTimeout = setTimeout(() => {
+        showRandomPickResult(randomPickWinnerVideo);
+    }, spinDurationMs + 150);
+}
+
+function showRandomPickResult(video) {
+    randomPickStatusTitle.style.display = 'none';
+    randomPickResultTitle.textContent = video.title;
+    randomPickResult.classList.remove('hidden');
+}
+
 // Lembra a preferência de densidade da grade (3 ou 4/5 capas por fileira) entre visitas
 function applyGridDensityPreference() {
-    const isDensity3 = localStorage.getItem('tubeflix_grid_density') === '3';
+    const density = sharedSettings.gridDensity || '4'; // Sem Firebase, usa sempre o padrão (nada é salvo local)
+    const isDensity3 = density === '3';
     document.body.classList.toggle('grid-density-3', isDensity3);
     if (btnToggleGridDensity) {
         btnToggleGridDensity.innerHTML = isDensity3
@@ -2231,20 +2364,17 @@ window.deleteVideo = async function(id) {
         return;
     }
 
+    if (useLocalStorageFallback) {
+        warnFirebaseUnavailable();
+        return;
+    }
+
     try {
-        if (useLocalStorageFallback) {
-            allVideos = allVideos.filter(v => v.id !== id);
-            localStorage.setItem('tubeflix_videos', JSON.stringify(allVideos));
-            showToast("Vídeo removido com sucesso!");
-            filterAndRenderRows();
-            renderAdminList();
-        } else {
-            await database.ref("videos/" + id).remove();
-            showToast("Vídeo removido com sucesso!");
-        }
+        await database.ref("videos/" + id).remove();
+        showToast("Vídeo removido com sucesso!");
     } catch (e) {
         console.error("Erro ao deletar:", e);
-        alert("Ocorreu um erro ao excluir.");
+        alert("Ocorreu um erro ao excluir. Tente novamente em instantes.");
     }
 };
 
@@ -2303,42 +2433,29 @@ function importLibraryFromJson(e) {
             }
 
             if (useLocalStorageFallback) {
-                // Soma aos vídeos já existentes (não substitui a biblioteca).
-                // Garante que cada vídeo importado tenha um ID único, mesmo que o arquivo não traga um.
-                const existingIds = new Set(allVideos.map(v => v.id));
-                const newVideos = importedData.map((video, idx) => {
-                    let id = video.id;
-                    if (!id || existingIds.has(id)) {
-                        id = `imported_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 8)}`;
-                    }
-                    existingIds.add(id);
-                    return { ...video, id };
-                });
-                allVideos = allVideos.concat(newVideos);
-                localStorage.setItem('tubeflix_videos', JSON.stringify(allVideos));
-                showToast(`${newVideos.length} vídeo(s) importado(s) com sucesso!`);
-                filterAndRenderRows();
-                renderAdminList();
-            } else {
-                // Salvar no Firebase Realtime Database (cada vídeo recebe uma nova chave gerada pelo Firebase).
-                // Importante: a escrita é feita relativa a "dbRef" (o nó /videos), da mesma forma que um
-                // cadastro individual normal (dbRef.push(...)) — evita problemas com regras de segurança que
-                // podem rejeitar atualizações multi-caminho feitas a partir da raiz do banco de dados.
-                const updates = {};
-                importedData.forEach(video => {
-                    const newRefKey = dbRef.push().key;
-                    // Remove o id antigo (se existir) para evitar confusão com a nova chave do Firebase,
-                    // e remove quaisquer campos "undefined" (o Firebase rejeita valores undefined).
-                    const { id, ...cleanVideo } = video;
-                    Object.keys(cleanVideo).forEach(key => {
-                        if (cleanVideo[key] === undefined) delete cleanVideo[key];
-                    });
-                    updates[newRefKey] = cleanVideo;
-                });
-
-                await dbRef.update(updates);
-                showToast(`${importedData.length} vídeo(s) importado(s) no Firebase com sucesso!`);
+                warnFirebaseUnavailable();
+                e.target.value = '';
+                return;
             }
+
+            // Salvar no Firebase Realtime Database (cada vídeo recebe uma nova chave gerada pelo Firebase).
+            // Importante: a escrita é feita relativa a "dbRef" (o nó /videos), da mesma forma que um
+            // cadastro individual normal (dbRef.push(...)) — evita problemas com regras de segurança que
+            // podem rejeitar atualizações multi-caminho feitas a partir da raiz do banco de dados.
+            const updates = {};
+            importedData.forEach(video => {
+                const newRefKey = dbRef.push().key;
+                // Remove o id antigo (se existir) para evitar confusão com a nova chave do Firebase,
+                // e remove quaisquer campos "undefined" (o Firebase rejeita valores undefined).
+                const { id, ...cleanVideo } = video;
+                Object.keys(cleanVideo).forEach(key => {
+                    if (cleanVideo[key] === undefined) delete cleanVideo[key];
+                });
+                updates[newRefKey] = cleanVideo;
+            });
+
+            await dbRef.update(updates);
+            showToast(`${importedData.length} vídeo(s) importado(s) com sucesso!`);
         } catch (err) {
             console.error("Erro ao importar JSON:", err);
             alert("Não foi possível importar o arquivo.\n\nDetalhe do erro: " + err.message);

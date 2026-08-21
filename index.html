@@ -78,9 +78,9 @@
                     <i data-lucide="play" class="fill-current"></i>
                     <span>Assistir</span>
                 </button>
-                <button class="btn-info-hero" id="hero-info-btn">
-                    <i data-lucide="info"></i>
-                    <span>Mais Informações</span>
+                <button class="btn-info-hero" id="btn-random-pick-hero">
+                    <i data-lucide="dices"></i>
+                    <span>Escolha por Mim</span>
                 </button>
             </div>
         </div>
@@ -101,7 +101,7 @@
         </div>
 
         <!-- Seções de Fileiras (Sliders) -->
-        <section class="video-row-section" id="section-destaques">
+        <section class="video-row-section poster-grid-row" id="section-destaques">
             <h3 class="row-title">Populares na TubeFlix</h3>
             <div class="row-carousel-container">
                 <button class="carousel-control prev" onclick="scrollCarousel('carousel-destaques', -1)">
@@ -244,6 +244,36 @@
                         <span class="label">Categoria:</span>
                         <span class="value" id="modal-video-category">Categoria</span>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal "Escolha por Mim": pião 3D girando com as capas, para sortear um vídeo -->
+    <div id="modal-random-pick" class="modal-overlay hidden">
+        <div class="random-pick-card">
+            <button class="btn-close-player" id="close-random-pick-btn" title="Fechar">
+                <i data-lucide="x"></i>
+            </button>
+            <h2 class="random-pick-title" id="random-pick-status-title">Girando para escolher algo pra você...</h2>
+
+            <div class="random-pick-scene">
+                <div class="random-pick-drum" id="random-pick-drum"></div>
+                <div class="random-pick-shadow"></div>
+            </div>
+
+            <div id="random-pick-result" class="random-pick-result hidden">
+                <span class="random-pick-result-label">Que tal assistir:</span>
+                <h3 id="random-pick-result-title"></h3>
+                <div class="random-pick-result-actions">
+                    <button id="btn-random-pick-watch" class="btn-play-hero">
+                        <i data-lucide="play" style="fill: currentColor;"></i>
+                        <span>Assistir Agora</span>
+                    </button>
+                    <button id="btn-random-pick-again" class="btn-info-hero">
+                        <i data-lucide="refresh-cw"></i>
+                        <span>Girar de Novo</span>
+                    </button>
                 </div>
             </div>
         </div>

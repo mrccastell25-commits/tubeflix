@@ -104,6 +104,17 @@ function getCategoryLabels() {
     return { ...DEFAULT_CATEGORY_LABELS, ...(sharedSettings.categoryLabels || {}) };
 }
 
+// Mapa completo de rótulos de categoria (as 4 padrão + todas as personalizadas), usado sempre que
+// precisamos exibir o NOME da categoria de um vídeo em qualquer parte do sistema. Assim, renomear uma
+// categoria reflete em todo lugar (lista de vídeos do painel, busca, player, etc.) de uma vez só.
+function getAllCategoryLabelsMap() {
+    const map = { ...getCategoryLabels() };
+    (sharedSettings.customCategories || []).forEach(cat => {
+        map[cat.key] = cat.label;
+    });
+    return map;
+}
+
 // ===== Categorias Personalizadas (criadas pelo admin, além das 4 categorias padrão) =====
 
 // Sincroniza TODAS as configurações editáveis via Firebase (compartilhado entre TODOS os
@@ -132,6 +143,11 @@ function listenToSharedSettings() {
         applyGridDensityPreference();
         filterAndRenderRows();
         renderCustomCategoriesAdminList();
+        // Se o painel admin estiver aberto no momento, atualiza a lista para refletir o novo nome
+        // de categoria imediatamente (sem precisar fechar e abrir o painel de novo)
+        if (modalAdmin && !modalAdmin.classList.contains('hidden')) {
+            renderAdminList();
+        }
     }, (error) => {
         console.error("Erro ao ler configurações do Firebase.", error);
         useLocalStorageFallback = true;
@@ -409,12 +425,6 @@ const btnRandomPickAgain = document.getElementById('btn-random-pick-again');
 const closePassModal = document.getElementById('close-pass-modal');
 const closeAdminModal = document.getElementById('close-admin-modal');
 const closePlayerBtn = document.getElementById('close-player-btn');
-const nextEpisodeOverlay = document.getElementById('next-episode-overlay');
-const nextEpisodeCountdownEl = document.getElementById('next-episode-countdown');
-const nextEpisodeThumbEl = document.getElementById('next-episode-thumb');
-const nextEpisodeTitleEl = document.getElementById('next-episode-title');
-const btnCancelNextEpisode = document.getElementById('btn-cancel-next-episode');
-const btnPlayNextEpisode = document.getElementById('btn-play-next-episode');
 const btnSubmitPass = document.getElementById('btn-submit-pass');
 const adminPassInput = document.getElementById('admin-pass-input');
 
@@ -619,8 +629,6 @@ function setupEventListeners() {
     closePassModal.addEventListener('click', () => modalPassword.classList.add('hidden'));
     closeAdminModal.addEventListener('click', () => modalAdmin.classList.add('hidden'));
     closePlayerBtn.addEventListener('click', closePlayerModal);
-    btnCancelNextEpisode.addEventListener('click', cancelNextEpisodeCountdown);
-    btnPlayNextEpisode.addEventListener('click', playPendingNextEpisode);
 
     // Navegação entre lista e formulário no painel admin (relevante principalmente no celular)
     if (btnAddNewVideo) {
@@ -837,6 +845,17 @@ function setupEventListeners() {
                 // Caso falhe o noembed (CORS, limite de rede, etc.), gera localmente
                 fillFormSimulated(source.videoId);
             }
+
+            // A oEmbed usada acima não fornece a sinopse/descrição real do vídeo (só título, canal e capa).
+            // Busca a sinopse verdadeira do YouTube em segundo plano e substitui a gerada automaticamente
+            // assim que encontrar — funciona tanto para vídeos novos quanto para vídeos já cadastrados
+            // (clicar em "Extrair" de novo ao editar um vídeo existente também atualiza a sinopse dele).
+            fetchRealYouTubeDescription(url).then(realDescription => {
+                if (realDescription) {
+                    document.getElementById('new-description').value = realDescription;
+                    showToast("Sinopse real do YouTube encontrada e preenchida!", { duration: 3000 });
+                }
+            });
         } else if (source.sourceType === 'vimeo') {
             btnFetchUrl.disabled = true;
             btnFetchUrl.innerHTML = `<div class="spinner" style="width:14px; height:14px; border-width:2px; margin-right:5px;"></div> Buscando...`;
@@ -1265,6 +1284,54 @@ async function getYouTubeMetadata(videoUrl) {
         console.warn("API oEmbed falhou. Usando simulador local de dados.", e);
         return null;
     }
+}
+
+// Busca a SINOPSE/DESCRIÇÃO REAL do vídeo direto da página do YouTube — a API oEmbed usada acima não
+// fornece isso (só título, canal e capa), então usamos proxies CORS públicos para ler a página do vídeo
+// e extrair a descrição verdadeira. Se todas as tentativas falharem, retorna null e o formulário mantém
+// a descrição gerada automaticamente como alternativa (nunca fica sem nada preenchido).
+async function fetchRealYouTubeDescription(videoUrl) {
+    const proxies = [
+        `https://corsproxy.io/?${encodeURIComponent(videoUrl)}`,
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(videoUrl)}`,
+        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(videoUrl)}`
+    ];
+
+    for (const proxyUrl of proxies) {
+        try {
+            const response = await fetch(proxyUrl);
+            if (!response.ok) continue;
+            const html = await response.text();
+            if (!html || html.length < 500) continue; // resposta suspeita/curta demais, tenta o próximo proxy
+
+            // 1) Tenta primeiro o JSON interno da página (shortDescription), que costuma trazer o texto
+            // completo da sinopse, igual ao que aparece na aba "Descrição" do YouTube
+            const jsonMatch = html.match(/"shortDescription":"((?:[^"\\]|\\.)*)"/);
+            if (jsonMatch && jsonMatch[1]) {
+                const decoded = jsonMatch[1]
+                    .replace(/\\n/g, '\n')
+                    .replace(/\\"/g, '"')
+                    .replace(/\\\//g, '/')
+                    .replace(/\\\\/g, '\\');
+                if (decoded.trim()) return decodeHtmlEntities(decoded.trim());
+            }
+
+            // 2) Se não achar, tenta a meta tag og:description (geralmente uma versão resumida)
+            const ogMatch = html.match(/<meta\s+property="og:description"\s+content="([^"]*)"/i);
+            if (ogMatch && ogMatch[1] && ogMatch[1].trim()) {
+                return decodeHtmlEntities(ogMatch[1].trim());
+            }
+        } catch (e) {
+            console.warn("Falha ao tentar obter a sinopse real via proxy:", proxyUrl, e);
+        }
+    }
+    return null;
+}
+
+function decodeHtmlEntities(text) {
+    const el = document.createElement('textarea');
+    el.innerHTML = text;
+    return el.value;
 }
 
 // Extração de metadados do Vimeo via oEmbed (funciona sem chave de API, similar ao noembed do YouTube)
@@ -1866,10 +1933,13 @@ function loadPlayerForVideo(video) {
         genericContainer.innerHTML = `<video id="generic-video-element" src="${video.embedUrl}" controls autoplay playsinline></video>`;
         const videoEl = document.getElementById('generic-video-element');
         if (videoEl) {
-            // Ao terminar o vídeo, oferece o próximo capítulo da série (mesma lógica usada no YouTube)
+            // Ao terminar o vídeo, já inicia o próximo capítulo da série imediatamente (sem intervalo)
             videoEl.addEventListener('ended', () => {
                 const next = findNextEpisode(currentPlayingVideo);
-                if (next) startNextEpisodeCountdown(next);
+                if (next) {
+                    openPlayerModal(next);
+                    showToast(`Reproduzindo: ${next.title}`, { duration: 2500 });
+                }
             });
         }
     } else if (sourceType === 'vimeo') {
@@ -1938,17 +2008,17 @@ function handlePlayerError(event) {
 }
 
 // Detecta o fim da reprodução para oferecer o próximo capítulo automaticamente (apenas séries)
+// Detecta o fim da reprodução e já inicia o próximo capítulo IMEDIATAMENTE, sem intervalo/espera entre
+// os episódios de uma série (o aviso com contagem regressiva foi removido a pedido do usuário)
 function handlePlayerStateChange(event) {
     if (typeof YT === 'undefined') return;
 
     if (event.data === YT.PlayerState.ENDED) {
         const next = findNextEpisode(currentPlayingVideo);
         if (next) {
-            startNextEpisodeCountdown(next);
+            openPlayerModal(next);
+            showToast(`Reproduzindo: ${next.title}`, { duration: 2500 });
         }
-    } else if (event.data === YT.PlayerState.PLAYING) {
-        // Se o vídeo voltou a tocar (ex: usuário deu replay), cancela qualquer contagem pendente
-        cancelNextEpisodeCountdown();
     }
 }
 
@@ -1980,42 +2050,14 @@ function findNextEpisode(video) {
     return siblings[currentIndex + 1];
 }
 
-// Mostra o aviso de "Próximo capítulo" com contagem regressiva de 10 segundos
-function startNextEpisodeCountdown(next) {
-    pendingNextEpisode = next;
-    nextEpisodeSecondsLeft = 10;
-
-    nextEpisodeTitleEl.textContent = next.title;
-    nextEpisodeThumbEl.src = next.imageUrl;
-    nextEpisodeThumbEl.setAttribute('style', getPosterImageStyle(next));
-    nextEpisodeCountdownEl.textContent = nextEpisodeSecondsLeft;
-    nextEpisodeOverlay.classList.remove('hidden');
-
-    if (nextEpisodeCountdownInterval) clearInterval(nextEpisodeCountdownInterval);
-    nextEpisodeCountdownInterval = setInterval(() => {
-        nextEpisodeSecondsLeft -= 1;
-        nextEpisodeCountdownEl.textContent = Math.max(nextEpisodeSecondsLeft, 0);
-        if (nextEpisodeSecondsLeft <= 0) {
-            playPendingNextEpisode();
-        }
-    }, 1000);
-}
-
-// Cancela a contagem regressiva (usuário clicou em "Cancelar", fechou o player, ou trocou de vídeo manualmente)
+// Mantida por compatibilidade (chamada ao abrir/fechar o player) — hoje só limpa variáveis de estado,
+// já que o antigo aviso com contagem regressiva foi removido (episódios avançam sem intervalo)
 function cancelNextEpisodeCountdown() {
     if (nextEpisodeCountdownInterval) {
         clearInterval(nextEpisodeCountdownInterval);
         nextEpisodeCountdownInterval = null;
     }
     pendingNextEpisode = null;
-    nextEpisodeOverlay.classList.add('hidden');
-}
-
-// Inicia o próximo capítulo (chamado ao fim da contagem ou ao clicar em "Assistir agora")
-function playPendingNextEpisode() {
-    const next = pendingNextEpisode;
-    cancelNextEpisodeCountdown();
-    if (next) openPlayerModal(next);
 }
 
 // Abrir Vídeo no Modal
@@ -2035,7 +2077,7 @@ function openPlayerModal(video) {
     document.getElementById('modal-video-description').textContent = video.description;
     document.getElementById('modal-video-cast').textContent = video.cast || "Não informado";
     document.getElementById('modal-video-director').textContent = video.director;
-    const catLabels = getCategoryLabels();
+    const catLabels = getAllCategoryLabelsMap();
     document.getElementById('modal-video-category').textContent = (catLabels[video.category] || video.category).toUpperCase();
     document.getElementById('modal-video-duration').textContent = video.duration;
     document.getElementById('modal-video-year').textContent = video.year;
@@ -2272,6 +2314,7 @@ function renderAdminList() {
     }
 
     // Filtra pela pesquisa do painel admin (título, canal/diretor, nome da série ou categoria)
+    const categoryLabelsForSearch = getAllCategoryLabelsMap();
     let videosToShow = allVideos;
     if (adminSearchQuery !== '') {
         videosToShow = allVideos.filter(video => {
@@ -2280,6 +2323,7 @@ function renderAdminList() {
                 video.director,
                 video.seriesName,
                 video.category,
+                categoryLabelsForSearch[video.category], // também busca pelo nome atual (renomeado) da categoria
                 video.cast
             ].filter(Boolean).join(' ').toLowerCase();
             return haystack.includes(adminSearchQuery);
@@ -2300,12 +2344,13 @@ function renderAdminList() {
     videosToShow.forEach(video => {
         const row = document.createElement('div');
         row.className = 'admin-video-row';
+        const categoryLabel = categoryLabelsForSearch[video.category] || video.category;
         row.innerHTML = `
             <div class="admin-video-row-left">
                 <img src="${video.imageUrl}" alt="Capa" class="admin-video-thumb">
                 <div class="admin-video-text">
                     <span class="admin-video-title-item">${video.title}</span>
-                    <span class="admin-video-channel">${video.director} (${video.category})</span>
+                    <span class="admin-video-channel">${video.director} (${categoryLabel})</span>
                 </div>
             </div>
             <div class="admin-video-actions">

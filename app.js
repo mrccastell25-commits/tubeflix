@@ -43,12 +43,6 @@ try {
     useLocalStorageFallback = true;
 }
 
-// Controla se o Firebase já respondeu pelo menos uma vez (evita mostrar "biblioteca vazia"
-// prematuramente enquanto os dados ainda estão sendo carregados)
-let firebaseHasResponded = false;
-const LOADING_MIN_DURATION_MS = 4000; // tempo mínimo de exibição da tela de carregamento
-let loadingStartTime = Date.now();
-
 // 2. Variáveis de Estado da Aplicação
 const ADMIN_PASSWORD = "123"; // Senha padrão de fábrica (usada apenas se nenhuma senha customizada foi salva)
 
@@ -856,10 +850,24 @@ function setupEventListeners() {
             // Busca a sinopse verdadeira do YouTube em segundo plano e substitui a gerada automaticamente
             // assim que encontrar — funciona tanto para vídeos novos quanto para vídeos já cadastrados
             // (clicar em "Extrair" de novo ao editar um vídeo existente também atualiza a sinopse dele).
+            const descField = document.getElementById('new-description');
+            // Guarda a sinopse gerada automaticamente para restaurar se a busca falhar
+            const fallbackDesc = descField.value || '';
+
+            descField.disabled = true;
+            descField.style.opacity = '0.5';
+            descField.value = 'Buscando sinopse real do YouTube...';
+
             fetchRealYouTubeDescription(url).then(realDescription => {
+                descField.disabled = false;
+                descField.style.opacity = '';
                 if (realDescription) {
-                    document.getElementById('new-description').value = realDescription;
-                    showToast("Sinopse real do YouTube encontrada e preenchida!", { duration: 3000 });
+                    descField.value = realDescription;
+                    showToast("Sinopse encontrada e preenchida!", { duration: 3000 });
+                } else {
+                    // Restaura a sinopse gerada automaticamente se não conseguiu a real
+                    descField.value = fallbackDesc;
+                    showToast("Sinopse real não encontrada. Descrição gerada automaticamente mantida.", { duration: 4000 });
                 }
             });
         } else if (source.sourceType === 'vimeo') {
@@ -1136,31 +1144,16 @@ function fetchVideos() {
         // Ordenar por data de criação decrescente
         allVideos.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-        // Garante que a tela de carregamento seja exibida por pelo menos LOADING_MIN_DURATION_MS ms,
-        // mesmo que o Firebase responda mais rápido — evita um flash instantâneo pouco elegante
-        const elapsed = Date.now() - loadingStartTime;
-        const remaining = Math.max(0, LOADING_MIN_DURATION_MS - elapsed);
-
-        setTimeout(() => {
-            firebaseHasResponded = true;
-            filterAndRenderRows();
-            if (!modalAdmin.classList.contains('hidden')) {
-                renderAdminList();
-            }
-        }, remaining);
-
+        filterAndRenderRows();
+        if (!modalAdmin.classList.contains('hidden')) {
+            renderAdminList();
+        }
     }, (error) => {
         console.error("Erro ao ler do Firebase.", error);
         useLocalStorageFallback = true;
         allVideos = [];
-        // Mesmo em caso de erro, respeita o tempo mínimo antes de mostrar o estado vazio/erro
-        const elapsed = Date.now() - loadingStartTime;
-        const remaining = Math.max(0, LOADING_MIN_DURATION_MS - elapsed);
-        setTimeout(() => {
-            firebaseHasResponded = true;
-            filterAndRenderRows();
-            showFirebaseUnavailableBanner();
-        }, remaining);
+        filterAndRenderRows();
+        showFirebaseUnavailableBanner();
     });
 }
 
@@ -1312,6 +1305,34 @@ async function getYouTubeMetadata(videoUrl) {
 // e extrair a descrição verdadeira. Se todas as tentativas falharem, retorna null e o formulário mantém
 // a descrição gerada automaticamente como alternativa (nunca fica sem nada preenchido).
 async function fetchRealYouTubeDescription(videoUrl) {
+    const videoId = extractYouTubeId(videoUrl);
+    if (!videoId) return null;
+
+    // Estratégia 1: endpoint interno do YouTube (youtubei) — sem chave de API pública,
+    // retorna JSON completo com shortDescription e é muito mais confiável que raspar HTML.
+    try {
+        const body = {
+            videoId,
+            context: { client: { clientName: 'WEB', clientVersion: '2.20240101' } }
+        };
+        const res = await fetch(
+            'https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8',
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            }
+        );
+        if (res.ok) {
+            const data = await res.json();
+            const desc = data && data.videoDetails && data.videoDetails.shortDescription;
+            if (desc && desc.trim()) return desc.trim();
+        }
+    } catch (e) {
+        console.warn('youtubei falhou, tentando proxies:', e);
+    }
+
+    // Estratégia 2: proxies CORS lendo o HTML da página
     const proxies = [
         `https://corsproxy.io/?${encodeURIComponent(videoUrl)}`,
         `https://api.allorigins.win/raw?url=${encodeURIComponent(videoUrl)}`,
@@ -1323,10 +1344,8 @@ async function fetchRealYouTubeDescription(videoUrl) {
             const response = await fetch(proxyUrl);
             if (!response.ok) continue;
             const html = await response.text();
-            if (!html || html.length < 500) continue; // resposta suspeita/curta demais, tenta o próximo proxy
+            if (!html || html.length < 500) continue;
 
-            // 1) Tenta primeiro o JSON interno da página (shortDescription), que costuma trazer o texto
-            // completo da sinopse, igual ao que aparece na aba "Descrição" do YouTube
             const jsonMatch = html.match(/"shortDescription":"((?:[^"\\]|\\.)*)"/);
             if (jsonMatch && jsonMatch[1]) {
                 const decoded = jsonMatch[1]
@@ -1337,15 +1356,15 @@ async function fetchRealYouTubeDescription(videoUrl) {
                 if (decoded.trim()) return decodeHtmlEntities(decoded.trim());
             }
 
-            // 2) Se não achar, tenta a meta tag og:description (geralmente uma versão resumida)
-            const ogMatch = html.match(/<meta\s+property="og:description"\s+content="([^"]*)"/i);
+            const ogMatch = html.match(/<meta\s+(?:name|property)="(?:og:description|description)"\s+content="([^"]*)"/i);
             if (ogMatch && ogMatch[1] && ogMatch[1].trim()) {
                 return decodeHtmlEntities(ogMatch[1].trim());
             }
         } catch (e) {
-            console.warn("Falha ao tentar obter a sinopse real via proxy:", proxyUrl, e);
+            console.warn('Proxy falhou:', proxyUrl, e);
         }
     }
+
     return null;
 }
 
@@ -1563,20 +1582,6 @@ function filterAndRenderRows() {
             (video.description && video.description.toLowerCase().includes(currentSearchQuery))
         );
     }
-
-    const loadingState = document.getElementById('loading-state');
-
-    // Enquanto o Firebase ainda não respondeu, mantém a tela de carregamento visível
-    if (!firebaseHasResponded) {
-        if (loadingState) loadingState.classList.remove('hidden');
-        noVideosState.classList.add('hidden');
-        document.querySelectorAll('.video-row-section').forEach(sec => sec.classList.add('hidden'));
-        document.getElementById('hero-banner').classList.add('hidden');
-        return;
-    }
-
-    // Firebase já respondeu: esconde a tela de carregamento definitivamente
-    if (loadingState) loadingState.classList.add('hidden');
 
     // Exibir/Ocultar tela de biblioteca vazia
     if (allVideos.length === 0) {
@@ -2034,57 +2039,12 @@ function handlePlayerError(event) {
 
     const videoId = currentPlayingVideo ? currentPlayingVideo.videoId : null;
 
-    // Abre o vídeo no YouTube em nova aba (o embed foi bloqueado pelo dono do vídeo)
+    cancelNextEpisodeCountdown();
+    closePlayerModal();
+
     if (videoId) {
         window.open(`https://www.youtube.com/watch?v=${videoId}`, '_blank', 'noopener');
     }
-
-    // Mostra o modal de "vídeo bloqueado" com opções para continuar a série no app
-    showBlockedVideoModal(currentPlayingVideo);
-}
-
-// Exibe o modal de vídeo bloqueado (embed não permitido pelo dono): o vídeo foi aberto no YouTube
-// em nova aba, e aqui o usuário escolhe o que fazer ao voltar ao app — assistir o próximo episódio
-// da série ou encerrar a sessão. Se for o último episódio, apenas a opção de encerrar é exibida.
-function showBlockedVideoModal(video) {
-    const modal = document.getElementById('blocked-video-modal');
-    if (!modal) return;
-
-    const nextEpisode = findNextEpisode(video);
-    const btnNext = document.getElementById('blocked-video-btn-next');
-    const btnClose = document.getElementById('blocked-video-btn-close');
-    const titleEl = document.getElementById('blocked-video-title');
-
-    if (titleEl) {
-        titleEl.textContent = video ? video.title : 'Este vídeo';
-    }
-
-    if (btnNext) {
-        if (nextEpisode) {
-            btnNext.classList.remove('hidden');
-            btnNext.onclick = () => {
-                closeBlockedVideoModal();
-                openPlayerModal(nextEpisode);
-            };
-        } else {
-            // Último episódio: esconde o botão de próximo
-            btnNext.classList.add('hidden');
-        }
-    }
-
-    if (btnClose) {
-        btnClose.onclick = () => {
-            closeBlockedVideoModal();
-            closePlayerModal();
-        };
-    }
-
-    modal.classList.remove('hidden');
-}
-
-function closeBlockedVideoModal() {
-    const modal = document.getElementById('blocked-video-modal');
-    if (modal) modal.classList.add('hidden');
 }
 
 // Detecta o fim da reprodução para oferecer o próximo capítulo automaticamente (apenas séries)

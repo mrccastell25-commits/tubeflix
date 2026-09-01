@@ -2430,3 +2430,107 @@ body.firebase-banner-active .hero-banner {
 .hidden {
     display: none !important;
 }
+
+/* ===== Modal de Vídeo Bloqueado (embed não permitido pelo YouTube) ===== */
+.blocked-video-modal-overlay {
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(6px);
+}
+
+.blocked-video-modal-card {
+    background: var(--surface-dark, #1a1a2e);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 36px 32px 28px;
+    max-width: 440px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+    animation: blockedModalIn 0.25s ease;
+}
+
+@keyframes blockedModalIn {
+    from { opacity: 0; transform: scale(0.92) translateY(12px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.blocked-video-icon {
+    margin-bottom: 14px;
+}
+
+.blocked-video-heading {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text-primary, #fff);
+    margin: 0 0 12px;
+}
+
+.blocked-video-body {
+    font-size: 0.88rem;
+    color: var(--text-muted, #aaa);
+    line-height: 1.55;
+    margin: 0 0 10px;
+}
+
+.blocked-video-body strong {
+    color: var(--text-primary, #fff);
+}
+
+.blocked-video-hint {
+    font-size: 0.82rem;
+    color: var(--text-muted, #aaa);
+    margin: 0 0 22px;
+}
+
+.blocked-video-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.btn-blocked-next {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: var(--primary, #e50914);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.18s, transform 0.12s;
+}
+
+.btn-blocked-next:hover {
+    background: #c40812;
+    transform: translateY(-1px);
+}
+
+.btn-blocked-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 11px 20px;
+    background: transparent;
+    color: var(--text-muted, #aaa);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.18s, color 0.18s, border-color 0.18s;
+}
+
+.btn-blocked-close:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+}

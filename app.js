@@ -1999,12 +1999,57 @@ function handlePlayerError(event) {
 
     const videoId = currentPlayingVideo ? currentPlayingVideo.videoId : null;
 
-    cancelNextEpisodeCountdown();
-    closePlayerModal();
-
+    // Abre o vídeo no YouTube em nova aba (o embed foi bloqueado pelo dono do vídeo)
     if (videoId) {
         window.open(`https://www.youtube.com/watch?v=${videoId}`, '_blank', 'noopener');
     }
+
+    // Mostra o modal de "vídeo bloqueado" com opções para continuar a série no app
+    showBlockedVideoModal(currentPlayingVideo);
+}
+
+// Exibe o modal de vídeo bloqueado (embed não permitido pelo dono): o vídeo foi aberto no YouTube
+// em nova aba, e aqui o usuário escolhe o que fazer ao voltar ao app — assistir o próximo episódio
+// da série ou encerrar a sessão. Se for o último episódio, apenas a opção de encerrar é exibida.
+function showBlockedVideoModal(video) {
+    const modal = document.getElementById('blocked-video-modal');
+    if (!modal) return;
+
+    const nextEpisode = findNextEpisode(video);
+    const btnNext = document.getElementById('blocked-video-btn-next');
+    const btnClose = document.getElementById('blocked-video-btn-close');
+    const titleEl = document.getElementById('blocked-video-title');
+
+    if (titleEl) {
+        titleEl.textContent = video ? video.title : 'Este vídeo';
+    }
+
+    if (btnNext) {
+        if (nextEpisode) {
+            btnNext.classList.remove('hidden');
+            btnNext.onclick = () => {
+                closeBlockedVideoModal();
+                openPlayerModal(nextEpisode);
+            };
+        } else {
+            // Último episódio: esconde o botão de próximo
+            btnNext.classList.add('hidden');
+        }
+    }
+
+    if (btnClose) {
+        btnClose.onclick = () => {
+            closeBlockedVideoModal();
+            closePlayerModal();
+        };
+    }
+
+    modal.classList.remove('hidden');
+}
+
+function closeBlockedVideoModal() {
+    const modal = document.getElementById('blocked-video-modal');
+    if (modal) modal.classList.add('hidden');
 }
 
 // Detecta o fim da reprodução para oferecer o próximo capítulo automaticamente (apenas séries)

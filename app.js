@@ -43,6 +43,12 @@ try {
     useLocalStorageFallback = true;
 }
 
+// Controla se o Firebase já respondeu pelo menos uma vez (evita mostrar "biblioteca vazia"
+// prematuramente enquanto os dados ainda estão sendo carregados)
+let firebaseHasResponded = false;
+const LOADING_MIN_DURATION_MS = 4000; // tempo mínimo de exibição da tela de carregamento
+let loadingStartTime = Date.now();
+
 // 2. Variáveis de Estado da Aplicação
 const ADMIN_PASSWORD = "123"; // Senha padrão de fábrica (usada apenas se nenhuma senha customizada foi salva)
 
@@ -1130,16 +1136,31 @@ function fetchVideos() {
         // Ordenar por data de criação decrescente
         allVideos.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-        filterAndRenderRows();
-        if (!modalAdmin.classList.contains('hidden')) {
-            renderAdminList();
-        }
+        // Garante que a tela de carregamento seja exibida por pelo menos LOADING_MIN_DURATION_MS ms,
+        // mesmo que o Firebase responda mais rápido — evita um flash instantâneo pouco elegante
+        const elapsed = Date.now() - loadingStartTime;
+        const remaining = Math.max(0, LOADING_MIN_DURATION_MS - elapsed);
+
+        setTimeout(() => {
+            firebaseHasResponded = true;
+            filterAndRenderRows();
+            if (!modalAdmin.classList.contains('hidden')) {
+                renderAdminList();
+            }
+        }, remaining);
+
     }, (error) => {
         console.error("Erro ao ler do Firebase.", error);
         useLocalStorageFallback = true;
         allVideos = [];
-        filterAndRenderRows();
-        showFirebaseUnavailableBanner();
+        // Mesmo em caso de erro, respeita o tempo mínimo antes de mostrar o estado vazio/erro
+        const elapsed = Date.now() - loadingStartTime;
+        const remaining = Math.max(0, LOADING_MIN_DURATION_MS - elapsed);
+        setTimeout(() => {
+            firebaseHasResponded = true;
+            filterAndRenderRows();
+            showFirebaseUnavailableBanner();
+        }, remaining);
     });
 }
 
@@ -1542,6 +1563,20 @@ function filterAndRenderRows() {
             (video.description && video.description.toLowerCase().includes(currentSearchQuery))
         );
     }
+
+    const loadingState = document.getElementById('loading-state');
+
+    // Enquanto o Firebase ainda não respondeu, mantém a tela de carregamento visível
+    if (!firebaseHasResponded) {
+        if (loadingState) loadingState.classList.remove('hidden');
+        noVideosState.classList.add('hidden');
+        document.querySelectorAll('.video-row-section').forEach(sec => sec.classList.add('hidden'));
+        document.getElementById('hero-banner').classList.add('hidden');
+        return;
+    }
+
+    // Firebase já respondeu: esconde a tela de carregamento definitivamente
+    if (loadingState) loadingState.classList.add('hidden');
 
     // Exibir/Ocultar tela de biblioteca vazia
     if (allVideos.length === 0) {

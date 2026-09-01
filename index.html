@@ -89,6 +89,15 @@
 
     <!-- Conteúdo Principal com Fileiras de Categorias -->
     <main class="main-container" id="main-container">
+        <!-- Estado de carregamento inicial: exibido enquanto o Firebase ainda não respondeu -->
+        <div id="loading-state" class="loading-library">
+            <div class="loading-dots">
+                <span></span><span></span><span></span>
+            </div>
+            <h2>Estamos preparando tudo para você...</h2>
+            <p>Carregando sua biblioteca de conteúdos</p>
+        </div>
+
         <div id="no-videos-state" class="empty-library hidden">
             <div class="empty-icon">
                 <i data-lucide="clapperboard"></i>

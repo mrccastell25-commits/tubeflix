@@ -89,7 +89,7 @@
 
     <!-- Conteúdo Principal com Fileiras de Categorias -->
     <main class="main-container" id="main-container">
-        <!-- Estado de carregamento inicial: exibido enquanto o Firebase ainda não respondeu -->
+        <!-- Tela de carregamento inicial — visível até o Firebase responder -->
         <div id="loading-state" class="loading-library">
             <div class="loading-dots">
                 <span></span><span></span><span></span>
@@ -236,33 +236,6 @@
                         <span class="value" id="modal-video-category">Categoria</span>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal de vídeo bloqueado: exibido quando o embed do YouTube não é permitido.
-         O vídeo já foi aberto no YouTube em nova aba; este modal fica no app para o
-         usuário escolher o que fazer ao voltar. -->
-    <div id="blocked-video-modal" class="modal-overlay hidden blocked-video-modal-overlay">
-        <div class="blocked-video-modal-card">
-            <div class="blocked-video-icon">
-                <i data-lucide="youtube" style="width:32px;height:32px;color:#ff0000;"></i>
-            </div>
-            <h3 class="blocked-video-heading">Vídeo aberto no YouTube</h3>
-            <p class="blocked-video-body">
-                <strong id="blocked-video-title"></strong> não pode ser reproduzido aqui porque
-                o proprietário desativou a incorporação. Ele foi aberto no YouTube em uma nova aba.
-            </p>
-            <p class="blocked-video-hint">Quando terminar de assistir, volte ao app e escolha o que fazer:</p>
-            <div class="blocked-video-actions">
-                <button id="blocked-video-btn-next" class="btn-blocked-next">
-                    <i data-lucide="skip-forward" style="width:16px;height:16px;"></i>
-                    Assistir próximo vídeo
-                </button>
-                <button id="blocked-video-btn-close" class="btn-blocked-close">
-                    <i data-lucide="x-circle" style="width:16px;height:16px;"></i>
-                    Encerrar playlist
-                </button>
             </div>
         </div>
     </div>

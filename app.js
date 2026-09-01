@@ -43,6 +43,12 @@ try {
     useLocalStorageFallback = true;
 }
 
+// Controla se o Firebase já respondeu pelo menos uma vez — evita mostrar "biblioteca vazia"
+// prematuramente enquanto os dados ainda estão sendo carregados
+let firebaseHasResponded = false;
+const LOADING_MIN_DURATION_MS = 4000;
+let loadingStartTime = Date.now();
+
 // 2. Variáveis de Estado da Aplicação
 const ADMIN_PASSWORD = "123"; // Senha padrão de fábrica (usada apenas se nenhuma senha customizada foi salva)
 
@@ -846,14 +852,9 @@ function setupEventListeners() {
                 fillFormSimulated(source.videoId);
             }
 
-            // A oEmbed usada acima não fornece a sinopse/descrição real do vídeo (só título, canal e capa).
-            // Busca a sinopse verdadeira do YouTube em segundo plano e substitui a gerada automaticamente
-            // assim que encontrar — funciona tanto para vídeos novos quanto para vídeos já cadastrados
-            // (clicar em "Extrair" de novo ao editar um vídeo existente também atualiza a sinopse dele).
+            // A oEmbed não fornece sinopse — busca em segundo plano e preenche quando encontrar.
             const descField = document.getElementById('new-description');
-            // Guarda a sinopse gerada automaticamente para restaurar se a busca falhar
             const fallbackDesc = descField.value || '';
-
             descField.disabled = true;
             descField.style.opacity = '0.5';
             descField.value = 'Buscando sinopse real do YouTube...';
@@ -865,7 +866,6 @@ function setupEventListeners() {
                     descField.value = realDescription;
                     showToast("Sinopse encontrada e preenchida!", { duration: 3000 });
                 } else {
-                    // Restaura a sinopse gerada automaticamente se não conseguiu a real
                     descField.value = fallbackDesc;
                     showToast("Sinopse real não encontrada. Descrição gerada automaticamente mantida.", { duration: 4000 });
                 }
@@ -1133,27 +1133,36 @@ function fetchVideos() {
         const data = snapshot.val();
         if (data) {
             Object.keys(data).forEach((key) => {
-                // Ignora entradas nulas/vazias (ex: um filho removido que ainda aparece momentaneamente
-                // como null durante a sincronização) para não quebrar a renderização com vídeos incompletos
                 if (data[key] && typeof data[key] === 'object' && data[key].title) {
                     allVideos.push({ id: key, ...data[key] });
                 }
             });
         }
 
-        // Ordenar por data de criação decrescente
         allVideos.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-        filterAndRenderRows();
-        if (!modalAdmin.classList.contains('hidden')) {
-            renderAdminList();
-        }
+        // Garante tempo mínimo de exibição da tela de carregamento
+        const elapsed = Date.now() - loadingStartTime;
+        const remaining = Math.max(0, LOADING_MIN_DURATION_MS - elapsed);
+        setTimeout(() => {
+            firebaseHasResponded = true;
+            filterAndRenderRows();
+            if (!modalAdmin.classList.contains('hidden')) {
+                renderAdminList();
+            }
+        }, remaining);
+
     }, (error) => {
         console.error("Erro ao ler do Firebase.", error);
         useLocalStorageFallback = true;
         allVideos = [];
-        filterAndRenderRows();
-        showFirebaseUnavailableBanner();
+        const elapsed = Date.now() - loadingStartTime;
+        const remaining = Math.max(0, LOADING_MIN_DURATION_MS - elapsed);
+        setTimeout(() => {
+            firebaseHasResponded = true;
+            filterAndRenderRows();
+            showFirebaseUnavailableBanner();
+        }, remaining);
     });
 }
 
@@ -1308,19 +1317,18 @@ async function fetchRealYouTubeDescription(videoUrl) {
     const videoId = extractYouTubeId(videoUrl);
     if (!videoId) return null;
 
-    // Estratégia 1: endpoint interno do YouTube (youtubei) — sem chave de API pública,
-    // retorna JSON completo com shortDescription e é muito mais confiável que raspar HTML.
+    // Estratégia 1: endpoint interno do YouTube (youtubei) — retorna JSON estruturado
+    // com shortDescription completa, muito mais confiável que raspar HTML via proxy.
     try {
-        const body = {
-            videoId,
-            context: { client: { clientName: 'WEB', clientVersion: '2.20240101' } }
-        };
         const res = await fetch(
             'https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8',
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
+                body: JSON.stringify({
+                    videoId,
+                    context: { client: { clientName: 'WEB', clientVersion: '2.20240101' } }
+                })
             }
         );
         if (res.ok) {
@@ -1332,7 +1340,7 @@ async function fetchRealYouTubeDescription(videoUrl) {
         console.warn('youtubei falhou, tentando proxies:', e);
     }
 
-    // Estratégia 2: proxies CORS lendo o HTML da página
+    // Estratégia 2: proxies CORS como fallback
     const proxies = [
         `https://corsproxy.io/?${encodeURIComponent(videoUrl)}`,
         `https://api.allorigins.win/raw?url=${encodeURIComponent(videoUrl)}`,
@@ -1364,7 +1372,6 @@ async function fetchRealYouTubeDescription(videoUrl) {
             console.warn('Proxy falhou:', proxyUrl, e);
         }
     }
-
     return null;
 }
 
@@ -1582,6 +1589,20 @@ function filterAndRenderRows() {
             (video.description && video.description.toLowerCase().includes(currentSearchQuery))
         );
     }
+
+    const loadingState = document.getElementById('loading-state');
+
+    // Enquanto o Firebase ainda não respondeu, mantém a tela de carregamento e oculta tudo mais
+    if (!firebaseHasResponded) {
+        if (loadingState) loadingState.classList.remove('hidden');
+        noVideosState.classList.add('hidden');
+        document.querySelectorAll('.video-row-section').forEach(sec => sec.classList.add('hidden'));
+        document.getElementById('hero-banner').classList.add('hidden');
+        return;
+    }
+
+    // Firebase respondeu: esconde o loading definitivamente
+    if (loadingState) loadingState.classList.add('hidden');
 
     // Exibir/Ocultar tela de biblioteca vazia
     if (allVideos.length === 0) {

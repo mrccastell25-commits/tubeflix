@@ -984,18 +984,14 @@ body {
 .player-modal-container {
     width: 90%;
     max-width: 950px;
-    max-height: 92vh;
     background-color: var(--netflix-dark-gray);
     border-radius: 8px;
     overflow: hidden;
-    overflow-y: auto;
     position: relative;
     box-shadow: 0 15px 50px rgba(0,0,0,0.9);
     border: 1px solid var(--border-color);
     transform: scale(0.9);
     animation: zoomIn var(--transition-smooth) forwards;
-    display: flex;
-    flex-direction: column;
 }
 
 @keyframes zoomIn {
@@ -1030,7 +1026,6 @@ body {
     width: 100%;
     aspect-ratio: 16/9;
     background-color: #000000;
-    flex-shrink: 0;
 }
 
 .video-iframe-wrapper iframe {
@@ -1065,7 +1060,6 @@ body {
     display: grid;
     grid-template-columns: 2fr 1fr;
     gap: 30px;
-    flex-shrink: 0;
 }
 
 @media (max-width: 768px) {
@@ -1128,28 +1122,6 @@ body {
     font-size: 0.9rem;
     line-height: 1.5;
     color: #e5e5e5;
-    max-height: 120px;
-    overflow-y: auto;
-    padding-right: 6px;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255,255,255,0.2) transparent;
-}
-
-.player-video-synopsis::-webkit-scrollbar {
-    width: 4px;
-}
-
-.player-video-synopsis::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.player-video-synopsis::-webkit-scrollbar-thumb {
-    background: rgba(255,255,255,0.2);
-    border-radius: 4px;
-}
-
-.player-video-synopsis::-webkit-scrollbar-thumb:hover {
-    background: rgba(255,255,255,0.4);
 }
 
 /* Notificação temporária (toast) */
@@ -2457,4 +2429,156 @@ body.firebase-banner-active .hero-banner {
 
 .hidden {
     display: none !important;
+}
+
+/* ===== Modal de Vídeo Bloqueado (embed não permitido pelo YouTube) ===== */
+.blocked-video-modal-overlay {
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(6px);
+}
+
+.blocked-video-modal-card {
+    background: var(--surface-dark, #1a1a2e);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 36px 32px 28px;
+    max-width: 440px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+    animation: blockedModalIn 0.25s ease;
+}
+
+@keyframes blockedModalIn {
+    from { opacity: 0; transform: scale(0.92) translateY(12px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.blocked-video-icon {
+    margin-bottom: 14px;
+}
+
+.blocked-video-heading {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text-primary, #fff);
+    margin: 0 0 12px;
+}
+
+.blocked-video-body {
+    font-size: 0.88rem;
+    color: var(--text-muted, #aaa);
+    line-height: 1.55;
+    margin: 0 0 10px;
+}
+
+.blocked-video-body strong {
+    color: var(--text-primary, #fff);
+}
+
+.blocked-video-hint {
+    font-size: 0.82rem;
+    color: var(--text-muted, #aaa);
+    margin: 0 0 22px;
+}
+
+.blocked-video-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.btn-blocked-next {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: var(--primary, #e50914);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.18s, transform 0.12s;
+}
+
+.btn-blocked-next:hover {
+    background: #c40812;
+    transform: translateY(-1px);
+}
+
+.btn-blocked-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 11px 20px;
+    background: transparent;
+    color: var(--text-muted, #aaa);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.18s, color 0.18s, border-color 0.18s;
+}
+
+.btn-blocked-close:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* ===== Tela de Carregamento Inicial ===== */
+.loading-library {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    text-align: center;
+    padding: 40px 20px;
+    gap: 16px;
+}
+
+.loading-library h2 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--text-primary, #fff);
+    margin: 0;
+}
+
+.loading-library p {
+    font-size: 0.9rem;
+    color: var(--text-muted, #aaa);
+    margin: 0;
+}
+
+/* Três pontos pulsantes */
+.loading-dots {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.loading-dots span {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--primary, #e50914);
+    animation: dotPulse 1.2s ease-in-out infinite;
+}
+
+.loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes dotPulse {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+    40%            { transform: scale(1);   opacity: 1;   }
 }

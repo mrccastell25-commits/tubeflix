@@ -1122,7 +1122,14 @@ body {
     font-size: 0.9rem;
     line-height: 1.5;
     color: #e5e5e5;
+    max-height: 120px;        /* Limita a altura máxima da sinopse */
+    overflow-y: auto;         /* Habilita a barra de rolagem vertical quando o texto passa do limite */
+    padding-right: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.2) transparent;
 }
+
+
 
 /* Notificação temporária (toast) */
 .app-toast {

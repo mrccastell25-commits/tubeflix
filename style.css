@@ -984,6 +984,7 @@ body {
 .player-modal-container {
     width: 90%;
     max-width: 950px;
+    max-height: 92vh; /* Altura máxima de 92% da tela */
     background-color: var(--netflix-dark-gray);
     border-radius: 8px;
     overflow: hidden;

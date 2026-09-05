@@ -853,17 +853,20 @@
                 // Recriar ficha técnica se a categoria ou título mudaram
                 const customDetails = generateSmartDetails(newTitle, newChannel, newCategory);
 
-                // displayCategory: lido do atributo data-display-category gravado pelo "Aplicar em lote"
-                // Só é incluído quando diferente da categoria real (evita campo desnecessário no JSON)
-                const rowDisplayCat = row.dataset.displayCategory || '';
-                const exportDisplayCat = (rowDisplayCat && rowDisplayCat !== newCategory) ? rowDisplayCat : undefined;
+                // Se a linha foi marcada como episódio de série (via "Aplicar em lote"):
+                //   - category exportado é sempre 'series' (para manter agrupamento no app)
+                //   - displayCategory é a categoria de destino visível em col-category (se != 'series')
+                // Caso contrário, usa o col-category normalmente sem displayCategory.
+                const isSeries = row.dataset.isSeries === '1';
+                const exportCategory = isSeries ? 'series' : newCategory;
+                const exportDisplayCat = (isSeries && newCategory !== 'series') ? newCategory : undefined;
 
                 const exportEntry = {
                     id: `yt_${video.videoId}_${Date.now()}_${originalIdx}`,
                     url: video.url,
                     videoId: video.videoId,
                     title: newTitle,
-                    category: newCategory,
+                    category: exportCategory,
                     rating: newRating,
                     duration: newDuration,
                     year: video.year,
@@ -1360,9 +1363,11 @@
                 selectedRows.forEach((row, position) => {
                     row.querySelector('.col-series-name').value = seriesName;
                     row.querySelector('.col-episode-order').value = position + 1;
-                    row.querySelector('.col-category').value = 'series';
-                    // Guarda a categoria de exibição como atributo de dados na linha para uso na exportação
-                    row.dataset.displayCategory = (bulkDisplayCat !== 'series') ? bulkDisplayCat : '';
+                    // col-category mostra a categoria de DESTINO escolhida pelo usuário.
+                    // data-is-series sinaliza que essa linha é um episódio de série,
+                    // para que a exportação saiba que deve gravar category='series' + displayCategory.
+                    row.querySelector('.col-category').value = bulkDisplayCat;
+                    row.dataset.isSeries = '1';
                 });
 
                 checkForDuplicateOrders();

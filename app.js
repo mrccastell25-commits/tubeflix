@@ -2220,6 +2220,63 @@ function findNextEpisode(video) {
     return siblings[currentIndex + 1];
 }
 
+function findPrevEpisode(video) {
+    if (!video || video.category !== 'series' || !video.seriesName || !video.seriesName.trim()) {
+        return null;
+    }
+
+    const normalizedName = video.seriesName.trim().toLowerCase();
+    const siblings = allVideos.filter(v =>
+        v.category === 'series' &&
+        v.seriesName &&
+        v.seriesName.trim().toLowerCase() === normalizedName
+    );
+
+    if (siblings.length < 2) return null;
+
+    siblings.sort((a, b) => {
+        const orderA = (a.episodeOrder != null) ? a.episodeOrder : Infinity;
+        const orderB = (b.episodeOrder != null) ? b.episodeOrder : Infinity;
+        if (orderA !== orderB) return orderA - orderB;
+        return (a.createdAt || 0) - (b.createdAt || 0);
+    });
+
+    const currentIndex = siblings.findIndex(v => v.id === video.id);
+    if (currentIndex <= 0) return null; // é o primeiro capítulo
+
+    return siblings[currentIndex - 1];
+}
+
+// Atualiza a visibilidade dos botões de navegação (anterior/próximo) do player.
+// Os botões só aparecem quando existir um episódio correspondente — nunca para vídeos avulsos
+// ou quando já estiver no primeiro/último capítulo da série.
+function updatePlayerNavButtons(video) {
+    const prev = findPrevEpisode(video);
+    const next = findNextEpisode(video);
+
+    // Desktop (lateral)
+    const btnPrev = document.getElementById('player-btn-prev');
+    const btnNext = document.getElementById('player-btn-next');
+    if (btnPrev) btnPrev.classList.toggle('hidden', !prev);
+    if (btnNext) btnNext.classList.toggle('hidden', !next);
+
+    // Mobile (abaixo do vídeo)
+    const btnPrevM = document.getElementById('player-btn-prev-mobile');
+    const btnNextM = document.getElementById('player-btn-next-mobile');
+    const navMobile = document.getElementById('player-nav-mobile');
+
+    if (btnPrevM) btnPrevM.classList.toggle('hidden', !prev);
+    if (btnNextM) btnNextM.classList.toggle('hidden', !next);
+    // Oculta a barra mobile inteira se não houver nenhum dos dois
+    if (navMobile) navMobile.style.display = (!prev && !next) ? 'none' : '';
+
+    // Conecta os cliques aos episódios encontrados
+    if (btnPrev) btnPrev.onclick = prev ? () => openPlayerModal(prev) : null;
+    if (btnNext) btnNext.onclick = next ? () => openPlayerModal(next) : null;
+    if (btnPrevM) btnPrevM.onclick = prev ? () => openPlayerModal(prev) : null;
+    if (btnNextM) btnNextM.onclick = next ? () => openPlayerModal(next) : null;
+}
+
 // Mantida por compatibilidade (chamada ao abrir/fechar o player) — hoje só limpa variáveis de estado,
 // já que o antigo aviso com contagem regressiva foi removido (episódios avançam sem intervalo)
 function cancelNextEpisodeCountdown() {
@@ -2241,6 +2298,9 @@ function openPlayerModal(video) {
 
     // Registra no histórico de "assistidos recentemente" (usado para popular a fileira "Minha Lista")
     recordWatchHistory(video.id);
+
+    // Mostra/oculta os botões de anterior/próximo conforme a posição do episódio na série
+    updatePlayerNavButtons(video);
 
     // Configura as informações do modal
     document.getElementById('modal-video-title').textContent = video.title;
@@ -2517,7 +2577,12 @@ function renderAdminList() {
         const categoryLabel = categoryLabelsForSearch[video.category] || video.category;
         row.innerHTML = `
             <div class="admin-video-row-left">
-                <img src="${video.imageUrl}" alt="Capa" class="admin-video-thumb">
+                <div class="admin-thumb-wrap" onclick="openPlayerModal(allVideos.find(v=>v.id==='${video.id}'))" title="Assistir">
+                    <img src="${video.imageUrl}" alt="Capa" class="admin-video-thumb">
+                    <div class="admin-thumb-play">
+                        <svg viewBox="0 0 24 24" fill="white" width="18" height="18"><path d="M8 5v14l11-7z"/></svg>
+                    </div>
+                </div>
                 <div class="admin-video-text">
                     <span class="admin-video-title-item">${video.title}</span>
                     <span class="admin-video-channel">${video.director} (${categoryLabel})</span>

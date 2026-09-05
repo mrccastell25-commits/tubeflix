@@ -2271,90 +2271,45 @@ function updatePlayerNavButtons(video) {
 ;(function initPlayerSwipe() {
     let touchStartX = 0;
     let touchStartY = 0;
-    let isDragging = false;   // true após confirmar que o gesto é horizontal
-    let cancelled = false;    // true se o gesto virou scroll vertical — ignora o touchend
+    let isDragging = false;
+    let cancelled  = false;
+    let arrowTimer = null;
 
     document.addEventListener('DOMContentLoaded', () => {
-        const modal = document.getElementById('player-modal');
+        const modal     = document.getElementById('player-modal');
         if (!modal) return;
-        const card = modal.querySelector('.player-modal-container');
-        if (!card) return;
+        const arrowPrev = document.getElementById('swipe-arrow-prev');
+        const arrowNext = document.getElementById('swipe-arrow-next');
 
-        // Garante transição suave ao soltar ou ao voltar para posição original
-        function setTransition(on) {
-            card.style.transition = on ? 'transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.3s' : 'none';
+        // Mostra a seta da direção indicada e agenda o desaparecimento
+        function showArrow(direction) {
+            clearTimeout(arrowTimer);
+            arrowPrev.classList.remove('visible');
+            arrowNext.classList.remove('visible');
+            if (direction === 'left'  && arrowNext) arrowNext.classList.add('visible');
+            if (direction === 'right' && arrowPrev) arrowPrev.classList.add('visible');
         }
 
-        // Desloca o card visualmente enquanto o dedo arrasta
-        function applyDrag(dx) {
-            // Resistência: após 120px o deslocamento abranda (como elástico)
-            const resistance = Math.abs(dx) > 120 ? 120 + (Math.abs(dx) - 120) * 0.25 : Math.abs(dx);
-            const translated = dx < 0 ? -resistance : resistance;
-            const opacity = 1 - Math.min(Math.abs(translated) / 300, 0.35);
-            card.style.transform = `translateX(${translated}px)`;
-            card.style.opacity = opacity;
+        function hideArrows() {
+            clearTimeout(arrowTimer);
+            if (arrowPrev) arrowPrev.classList.remove('visible');
+            if (arrowNext) arrowNext.classList.remove('visible');
         }
 
-        // Anima o card saindo para o lado e troca o conteúdo sem recriar o modal.
-        // Não chamamos openPlayerModal completo (ele reinicia o player e reseta os estilos);
-        // em vez disso atualizamos só os dados e recarregamos o player dentro do card existente.
+        // Troca o episódio: mostra seta, espera ela sumir, depois troca o conteúdo
         function swipeTo(targetVideo, direction) {
-            setTransition(true);
-            // 1. Card sai para o lado
-            card.style.transform = `translateX(${direction === 'left' ? '-110%' : '110%'})`;
-            card.style.opacity = '0';
-
-            setTimeout(() => {
-                // 2. Atualiza dados e player (sem animação de zoom, sem toggle hidden)
-                cancelNextEpisodeCountdown();
-                currentPlayingVideo = targetVideo;
-                recordWatchHistory(targetVideo.id);
-                updatePlayerNavButtons(targetVideo);
-
-                document.getElementById('modal-video-title').textContent = targetVideo.title;
-                document.getElementById('modal-video-description').textContent = targetVideo.description;
-                document.getElementById('modal-video-cast').textContent = targetVideo.cast || 'Não informado';
-                document.getElementById('modal-video-director').textContent = targetVideo.director;
-                const catLabels = getAllCategoryLabelsMap();
-                document.getElementById('modal-video-category').textContent = (catLabels[targetVideo.category] || targetVideo.category).toUpperCase();
-                document.getElementById('modal-video-duration').textContent = targetVideo.duration;
-                document.getElementById('modal-video-year').textContent = targetVideo.year;
-                const ageRate = document.getElementById('modal-video-rating');
-                ageRate.className = `age-rating rating-${targetVideo.rating.toLowerCase()}`;
-                ageRate.textContent = targetVideo.rating === 'L' ? 'L' : `${targetVideo.rating}+`;
-                document.getElementById('modal-video-match').textContent = `${100 - (targetVideo.title.length % 10)}% Match`;
-                const externalLink = document.getElementById('modal-video-external-link');
-                const srcType = targetVideo.sourceType || (targetVideo.videoId ? 'youtube' : 'iframe');
-                if (srcType !== 'youtube' && targetVideo.url) { externalLink.href = targetVideo.url; externalLink.classList.remove('hidden'); }
-                else { externalLink.classList.add('hidden'); }
-                loadPlayerForVideo(targetVideo);
-
-                // 3. Posiciona o card no lado oposto (sem transição) e desliza para o centro
-                card.style.transition = 'none';
-                card.style.transform = `translateX(${direction === 'left' ? '60%' : '-60%'})`;
-                card.style.opacity = '0.4';
-
-                requestAnimationFrame(() => requestAnimationFrame(() => {
-                    setTransition(true);
-                    card.style.transform = 'translateX(0)';
-                    card.style.opacity = '1';
-                }));
-            }, 260);
-        }
-
-        // Volta o card para o centro com animação (swipe cancelado ou sem episódio)
-        function snapBack() {
-            setTransition(true);
-            card.style.transform = 'translateX(0)';
-            card.style.opacity = '1';
+            showArrow(direction);
+            arrowTimer = setTimeout(() => {
+                hideArrows();
+                openPlayerModal(targetVideo);
+            }, 400);
         }
 
         modal.addEventListener('touchstart', e => {
             touchStartX = e.touches[0].clientX;
             touchStartY = e.touches[0].clientY;
             isDragging = false;
-            cancelled = false;
-            setTransition(false);
+            cancelled  = false;
         }, { passive: true });
 
         modal.addEventListener('touchmove', e => {
@@ -2362,33 +2317,31 @@ function updatePlayerNavButtons(video) {
             const dy = e.touches[0].clientY - touchStartY;
 
             if (!isDragging && !cancelled) {
-                // Ainda não definiu o gesto: espera 8px de movimento para decidir
                 if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-                if (Math.abs(dy) > Math.abs(dx)) {
-                    cancelled = true; // gesto vertical — não interfere com scroll
-                    return;
-                }
+                if (Math.abs(dy) > Math.abs(dx)) { cancelled = true; return; }
                 isDragging = true;
             }
 
             if (cancelled || !isDragging) return;
 
-            applyDrag(dx);
+            // Mostra a seta conforme a direção do arrasto (só se existir episódio nessa direção)
+            if (dx < -30 && modal._swipeNext) showArrow('left');
+            else if (dx > 30 && modal._swipePrev) showArrow('right');
+            else hideArrows();
         }, { passive: true });
 
         modal.addEventListener('touchend', e => {
             if (cancelled || !isDragging) return;
-
-            const dx = e.changedTouches[0].clientX - touchStartX;
             isDragging = false;
 
-            // Threshold: 80px para confirmar a troca
-            if (dx < -80 && modal._swipeNext) {
+            const dx = e.changedTouches[0].clientX - touchStartX;
+
+            if (dx < -60 && modal._swipeNext) {
                 swipeTo(modal._swipeNext, 'left');
-            } else if (dx > 80 && modal._swipePrev) {
+            } else if (dx > 60 && modal._swipePrev) {
                 swipeTo(modal._swipePrev, 'right');
             } else {
-                snapBack(); // não passou do threshold ou não há episódio nessa direção
+                hideArrows();
             }
         }, { passive: true });
     });

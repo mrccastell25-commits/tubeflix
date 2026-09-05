@@ -2647,3 +2647,35 @@ body.firebase-banner-active .hero-banner {
     0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
     40%            { transform: scale(1);   opacity: 1;   }
 }
+
+/* Seta de swipe: aparece sobre o player indicando a direção durante o gesto */
+.swipe-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%) scale(0.6);
+    width: 64px;
+    height: 64px;
+    background: var(--netflix-red);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 200;
+    transition: opacity 0.15s, transform 0.15s;
+}
+
+.swipe-arrow.visible {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+}
+
+.swipe-arrow svg {
+    width: 32px;
+    height: 32px;
+    fill: white;
+}
+
+.swipe-arrow-prev { left: 16px; }
+.swipe-arrow-next { right: 16px; }

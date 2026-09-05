@@ -1135,25 +1135,28 @@ function toggleDisplayCategoryField() {
     if (!group || !select || !newCategorySelect) return;
 
     const currentCat = newCategorySelect.value;
+    const savedValue = select.value; // preserva a seleção atual antes de reconstruir
 
-    // Rebuild das opções do select de categorias customizadas (mantém sincronizado com o admin)
-    // Remove opções customizadas antigas antes de recriar
-    Array.from(select.options).forEach(opt => {
-        if (opt.value && opt.getAttribute('data-custom')) opt.remove();
+    // Reconstrói todas as opções usando os nomes reais (renomeados pelo admin) + categorias customizadas.
+    // Mantém apenas a opção "— Mesma da categoria —" (value="") e recria o restante do zero,
+    // garantindo que nomes renomeados e categorias novas apareçam sempre atualizados.
+    while (select.options.length > 1) select.remove(1);
+
+    const allLabels = getAllCategoryLabelsMap(); // nomes reais de todas as categorias (padrão + customizadas)
+    Object.entries(allLabels).forEach(([key, label]) => {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = label;
+        select.appendChild(opt);
     });
-    getCustomCategories().forEach(cat => {
-        if (!select.querySelector(`option[value="${cat.key}"]`)) {
-            const opt = document.createElement('option');
-            opt.value = cat.key;
-            opt.textContent = cat.label;
-            opt.setAttribute('data-custom', '1');
-            select.appendChild(opt);
-        }
-    });
+
+    // Restaura a seleção anterior se ainda existir
+    select.value = savedValue;
+    if (select.value !== savedValue) select.value = ''; // fallback se a categoria foi removida
 
     // Oculta a opção que corresponde à própria categoria (seria redundante escolhê-la)
     Array.from(select.options).forEach(opt => {
-        opt.hidden = (opt.value === currentCat);
+        opt.hidden = (opt.value !== '' && opt.value === currentCat);
     });
 
     // Ajusta o hint explicativo conforme a categoria

@@ -500,6 +500,10 @@
             margin-top: auto;
         }
     </style>
+
+    <!-- Firebase SDKs (para ler nomes e categorias customizadas sincronizados com o site principal) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 </head>
 <body>
 
@@ -607,10 +611,8 @@
                     <div class="form-group" style="min-width: 170px; margin-bottom: 0;">
                         <label for="bulk-display-category">Exibir na lista de</label>
                         <select id="bulk-display-category" class="form-control table-select">
-                            <option value="series">Séries (padrão)</option>
-                            <option value="filmes">Filmes</option>
-                            <option value="documentarios">Documentários</option>
-                            <option value="tutoriais">Tutoriais / Tech</option>
+                            <!-- Opções preenchidas dinamicamente pelo Firebase ao carregar a página -->
+                            <option value="series">Séries</option>
                         </select>
                     </div>
                     <button type="button" id="btn-apply-series-name" class="btn-apply-series">
@@ -662,6 +664,75 @@
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
         });
+
+        // ── Firebase: lê nomes e categorias customizadas do mesmo banco do site principal ──
+        const _firebaseConfig = {
+            apiKey: "AIzaSyBn_IRWV1kVIWyJiJ7DUcuozUn3Se6JKvs",
+            authDomain: "gameflix-e54bf.firebaseapp.com",
+            databaseURL: "https://gameflix-e54bf-default-rtdb.firebaseio.com",
+            projectId: "gameflix-e54bf",
+        };
+        let _db = null;
+        try {
+            firebase.initializeApp(_firebaseConfig);
+            _db = firebase.database();
+        } catch(e) { console.warn('Firebase não disponível no extrator.', e); }
+
+        // Mapas de categorias — preenchidos quando o Firebase responde
+        const DEFAULT_LABELS = {
+            filmes: 'Filmes',
+            series: 'Séries',
+            documentarios: 'Documentários',
+            tutoriais: 'Tutoriais / Tech'
+        };
+        let _categoryLabels   = { ...DEFAULT_LABELS }; // nomes reais (padrão, possivelmente renomeados)
+        let _customCategories = [];                     // categorias extras criadas pelo admin
+
+        // Mapa completo chave → nome de todas as categorias
+        function _allLabels() {
+            const map = { ..._categoryLabels };
+            _customCategories.forEach(c => { map[c.key] = c.label; });
+            return map;
+        }
+
+        // Gera o HTML de <option>s para o select col-category de uma linha da tabela
+        function getCategoryOptionsHtml(selectedValue) {
+            return Object.entries(_allLabels()).map(([key, label]) =>
+                `<option value="${key}" ${selectedValue === key ? 'selected' : ''}>${label}</option>`
+            ).join('');
+        }
+
+        // Reconstrói as opções do select bulk-display-category com os nomes reais
+        function refreshBulkDisplayCategory() {
+            const sel = document.getElementById('bulk-display-category');
+            if (!sel) return;
+            const current = sel.value;
+            sel.innerHTML = Object.entries(_allLabels()).map(([key, label]) =>
+                `<option value="${key}" ${key === 'series' ? 'selected' : ''}>${label}</option>`
+            ).join('');
+            // Tenta restaurar a seleção anterior
+            sel.value = current;
+            if (!sel.value) sel.value = 'series';
+        }
+
+        // Reconstrói os selects col-category já existentes na tabela com os nomes atuais
+        function refreshTableCategorySelects() {
+            document.querySelectorAll('.col-category').forEach(sel => {
+                const current = sel.value;
+                sel.innerHTML = getCategoryOptionsHtml(current);
+            });
+        }
+
+        // Carrega settings do Firebase e atualiza todos os selects na página
+        if (_db) {
+            _db.ref('settings').on('value', snap => {
+                const data = snap.val() || {};
+                _categoryLabels   = { ...DEFAULT_LABELS, ...(data.categoryLabels || {}) };
+                _customCategories = data.customCategories || [];
+                refreshBulkDisplayCategory();
+                refreshTableCategorySelects();
+            });
+        }
 
         // Seletores de Elementos
         const playlistUrlInput = document.getElementById('playlist-url');
@@ -1181,10 +1252,7 @@
                     </td>
                     <td>
                         <select class="table-select col-category">
-                            <option value="filmes" ${video.category === 'filmes' ? 'selected' : ''}>Filme</option>
-                            <option value="series" ${video.category === 'series' ? 'selected' : ''}>Série</option>
-                            <option value="documentarios" ${video.category === 'documentarios' ? 'selected' : ''}>Documentário</option>
-                            <option value="tutoriais" ${video.category === 'tutoriais' ? 'selected' : ''}>Tech / Tutorial</option>
+                            ${getCategoryOptionsHtml(video.category)}
                         </select>
                     </td>
                     <td>

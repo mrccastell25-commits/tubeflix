@@ -1702,9 +1702,11 @@ function filterAndRenderRows() {
             rowVideos = rowVideos.slice(0, 10); // Limita a 10 itens
         }
 
-        // Tratamento especial para "Séries": agrupa por série e ordena os capítulos pela ordem definida,
-        // sem misturar episódios de séries diferentes
-        if (row.key === 'series') {
+        // Agrupa e ordena episódios de série em qualquer fileira onde eles apareçam.
+        // Isso cobre tanto a fileira "Séries" quanto fileiras de outras categorias para as quais uma
+        // série foi redirecionada via displayCategory (ex: série exibida na lista de Filmes).
+        // Vídeos avulsos (sem seriesName) não são afetados — groupAndSortSeriesEpisodes os mantém como estão.
+        if (rowVideos.some(v => v.category === 'series' && v.seriesName)) {
             rowVideos = groupAndSortSeriesEpisodes(rowVideos);
         }
 

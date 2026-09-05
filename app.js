@@ -2295,25 +2295,51 @@ function updatePlayerNavButtons(video) {
             card.style.opacity = opacity;
         }
 
-        // Anima o card saindo para o lado e abre o próximo vídeo
+        // Anima o card saindo para o lado e troca o conteúdo sem recriar o modal.
+        // Não chamamos openPlayerModal completo (ele reinicia o player e reseta os estilos);
+        // em vez disso atualizamos só os dados e recarregamos o player dentro do card existente.
         function swipeTo(targetVideo, direction) {
             setTransition(true);
+            // 1. Card sai para o lado
             card.style.transform = `translateX(${direction === 'left' ? '-110%' : '110%'})`;
             card.style.opacity = '0';
+
             setTimeout(() => {
+                // 2. Atualiza dados e player (sem animação de zoom, sem toggle hidden)
+                cancelNextEpisodeCountdown();
+                currentPlayingVideo = targetVideo;
+                recordWatchHistory(targetVideo.id);
+                updatePlayerNavButtons(targetVideo);
+
+                document.getElementById('modal-video-title').textContent = targetVideo.title;
+                document.getElementById('modal-video-description').textContent = targetVideo.description;
+                document.getElementById('modal-video-cast').textContent = targetVideo.cast || 'Não informado';
+                document.getElementById('modal-video-director').textContent = targetVideo.director;
+                const catLabels = getAllCategoryLabelsMap();
+                document.getElementById('modal-video-category').textContent = (catLabels[targetVideo.category] || targetVideo.category).toUpperCase();
+                document.getElementById('modal-video-duration').textContent = targetVideo.duration;
+                document.getElementById('modal-video-year').textContent = targetVideo.year;
+                const ageRate = document.getElementById('modal-video-rating');
+                ageRate.className = `age-rating rating-${targetVideo.rating.toLowerCase()}`;
+                ageRate.textContent = targetVideo.rating === 'L' ? 'L' : `${targetVideo.rating}+`;
+                document.getElementById('modal-video-match').textContent = `${100 - (targetVideo.title.length % 10)}% Match`;
+                const externalLink = document.getElementById('modal-video-external-link');
+                const srcType = targetVideo.sourceType || (targetVideo.videoId ? 'youtube' : 'iframe');
+                if (srcType !== 'youtube' && targetVideo.url) { externalLink.href = targetVideo.url; externalLink.classList.remove('hidden'); }
+                else { externalLink.classList.add('hidden'); }
+                loadPlayerForVideo(targetVideo);
+
+                // 3. Posiciona o card no lado oposto (sem transição) e desliza para o centro
                 card.style.transition = 'none';
                 card.style.transform = `translateX(${direction === 'left' ? '60%' : '-60%'})`;
-                card.style.opacity = '0';
-                openPlayerModal(targetVideo);
-                // Pequeno delay para o DOM atualizar antes de animar a entrada
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        setTransition(true);
-                        card.style.transform = 'translateX(0)';
-                        card.style.opacity = '1';
-                    });
-                });
-            }, 280);
+                card.style.opacity = '0.4';
+
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    setTransition(true);
+                    card.style.transform = 'translateX(0)';
+                    card.style.opacity = '1';
+                }));
+            }, 260);
         }
 
         // Volta o card para o centro com animação (swipe cancelado ou sem episódio)

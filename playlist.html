@@ -310,6 +310,44 @@
             background-color: #f40612;
         }
 
+        .btn-move-category {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background-color: #2b6cb0;
+            border: none;
+            color: #fff;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background-color 0.2s ease;
+        }
+
+        .btn-move-category:hover {
+            background-color: #245a99;
+        }
+
+        .bulk-divider {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 14px 0 10px;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .bulk-divider::before,
+        .bulk-divider::after {
+            content: '';
+            flex: 1;
+            border-top: 1px solid var(--border-color);
+        }
+
         input.col-episode-order {
             width: 70px;
             text-align: center;
@@ -603,9 +641,31 @@
             </div>
 
             <div class="series-bulk-apply">
+
+                <!-- Ação 1: mover vídeos individuais para uma categoria -->
+                <div class="series-bulk-row">
+                    <div class="form-group" style="min-width: 200px; margin-bottom: 0;">
+                        <label for="bulk-move-category">Mover marcados para a categoria</label>
+                        <select id="bulk-move-category" class="form-control table-select">
+                            <!-- Opções preenchidas dinamicamente pelo Firebase ao carregar a página -->
+                            <option value="series">Séries</option>
+                        </select>
+                    </div>
+                    <button type="button" id="btn-move-category" class="btn-move-category">
+                        <i data-lucide="folder-input"></i>
+                        <span>Mover marcados</span>
+                    </button>
+                </div>
+                <span class="input-hint" style="margin-bottom: 4px; display: block;">
+                    Altera a categoria dos vídeos marcados — cada um continua aparecendo <strong>individualmente</strong> na lista escolhida. Ideal para clipes, filmes avulsos ou qualquer conteúdo que não precisa ser agrupado.
+                </span>
+
+                <div class="bulk-divider">ou agrupar como série</div>
+
+                <!-- Ação 2: agrupar como série com nome e numeração -->
                 <div class="series-bulk-row">
                     <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                        <label for="bulk-series-name">Nome da Série (aplica às linhas marcadas ✓ abaixo)</label>
+                        <label for="bulk-series-name">Nome da Série (aplica às linhas marcadas ✓)</label>
                         <input type="text" id="bulk-series-name" class="form-control" placeholder="Ex: Nome da Série">
                     </div>
                     <div class="form-group" style="min-width: 170px; margin-bottom: 0;">
@@ -617,13 +677,16 @@
                     </div>
                     <button type="button" id="btn-apply-series-name" class="btn-apply-series">
                         <i data-lucide="list-ordered"></i>
-                        <span>Aplicar às marcadas e numerar em ordem</span>
+                        <span>Aplicar e numerar em ordem</span>
                     </button>
                 </div>
-                <span class="input-hint">Marca as linhas selecionadas como "Série", preenche o nome e numera 1, 2, 3... em ordem. Use "Exibir na lista de" para escolher em qual categoria a série vai aparecer no TubeFlix — por exemplo, importar uma série mas exibi-la na lista de Filmes. Repita para cada série separadamente se houver mais de uma misturada.</span>
+                <span class="input-hint">
+                    Marca as linhas como "Série", preenche o nome e numera 1, 2, 3... Os episódios aparecem <strong>agrupados como um único card</strong> na lista escolhida. Repita para cada série separadamente se houver mais de uma misturada.
+                </span>
+
                 <div id="duplicate-order-warning" class="duplicate-order-warning hidden">
                     <i data-lucide="alert-triangle" style="width: 16px; height: 16px;"></i>
-                    Existem vídeos da mesma série com o mesmo número de ordem (destacados em vermelho na tabela). Ajuste para que cada capítulo tenha um número único antes de exportar.
+                    Existem vídeos da mesma série com o mesmo número de ordem (destacados em vermelho). Ajuste para que cada capítulo tenha um número único antes de exportar.
                 </div>
             </div>
 
@@ -702,17 +765,18 @@
             ).join('');
         }
 
-        // Reconstrói as opções do select bulk-display-category com os nomes reais
+        // Reconstrói as opções dos selects de categoria em lote com os nomes reais
         function refreshBulkDisplayCategory() {
-            const sel = document.getElementById('bulk-display-category');
-            if (!sel) return;
-            const current = sel.value;
-            sel.innerHTML = Object.entries(_allLabels()).map(([key, label]) =>
-                `<option value="${key}" ${key === 'series' ? 'selected' : ''}>${label}</option>`
-            ).join('');
-            // Tenta restaurar a seleção anterior
-            sel.value = current;
-            if (!sel.value) sel.value = 'series';
+            ['bulk-display-category', 'bulk-move-category'].forEach(id => {
+                const sel = document.getElementById(id);
+                if (!sel) return;
+                const current = sel.value;
+                sel.innerHTML = Object.entries(_allLabels()).map(([key, label]) =>
+                    `<option value="${key}">${label}</option>`
+                ).join('');
+                sel.value = current;
+                if (!sel.value) sel.value = Object.keys(_allLabels())[0] || 'series';
+            });
         }
 
         // Reconstrói os selects col-category já existentes na tabela com os nomes atuais
@@ -1337,6 +1401,30 @@
                 videoCountSpan.textContent = currentCount - 1;
             }
         };
+
+        // Move os vídeos marcados para uma categoria, mantendo-os como itens individuais (sem série/ordem)
+        const btnMoveCategory = document.getElementById('btn-move-category');
+        if (btnMoveCategory) {
+            btnMoveCategory.addEventListener('click', () => {
+                const targetCategory = document.getElementById('bulk-move-category')?.value;
+                if (!targetCategory) return;
+
+                const allRows = Array.from(videosTbody.querySelectorAll('tr'));
+                const selectedRows = allRows.filter(row => row.querySelector('.row-select-checkbox').checked);
+
+                if (selectedRows.length === 0) {
+                    alert('Marque pelo menos uma linha (checkbox à esquerda) para mover.');
+                    return;
+                }
+
+                selectedRows.forEach(row => {
+                    row.querySelector('.col-category').value = targetCategory;
+                    // Garante que não há marcação de série em linhas movidas individualmente
+                    delete row.dataset.isSeries;
+                    row.dataset.displayCategory = '';
+                });
+            });
+        }
 
         // Aplica o nome da série e a ordem sequencial (1, 2, 3...) às linhas MARCADAS (checkbox) da tabela,
         // na ordem em que aparecem. Permite separar múltiplas séries misturadas na mesma playlist:

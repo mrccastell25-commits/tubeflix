@@ -604,12 +604,21 @@
                         <label for="bulk-series-name">Nome da Série (aplica às linhas marcadas ✓ abaixo)</label>
                         <input type="text" id="bulk-series-name" class="form-control" placeholder="Ex: Nome da Série">
                     </div>
+                    <div class="form-group" style="min-width: 170px; margin-bottom: 0;">
+                        <label for="bulk-display-category">Exibir na lista de</label>
+                        <select id="bulk-display-category" class="form-control table-select">
+                            <option value="series">Séries (padrão)</option>
+                            <option value="filmes">Filmes</option>
+                            <option value="documentarios">Documentários</option>
+                            <option value="tutoriais">Tutoriais / Tech</option>
+                        </select>
+                    </div>
                     <button type="button" id="btn-apply-series-name" class="btn-apply-series">
                         <i data-lucide="list-ordered"></i>
                         <span>Aplicar às marcadas e numerar em ordem</span>
                     </button>
                 </div>
-                <span class="input-hint">Marca a categoria das linhas selecionadas (checkbox à esquerda de cada uma) como "Série", preenche o nome informado e numera automaticamente 1, 2, 3... seguindo a ordem em que aparecem. Se a playlist tiver mais de uma série misturada, desmarque as linhas que não pertencem a essa série antes de aplicar — repita o processo para cada série separadamente. Ajuste manualmente qualquer capítulo que precise ficar em outra posição.</span>
+                <span class="input-hint">Marca as linhas selecionadas como "Série", preenche o nome e numera 1, 2, 3... em ordem. Use "Exibir na lista de" para escolher em qual categoria a série vai aparecer no TubeFlix — por exemplo, importar uma série mas exibi-la na lista de Filmes. Repita para cada série separadamente se houver mais de uma misturada.</span>
                 <div id="duplicate-order-warning" class="duplicate-order-warning hidden">
                     <i data-lucide="alert-triangle" style="width: 16px; height: 16px;"></i>
                     Existem vídeos da mesma série com o mesmo número de ordem (destacados em vermelho na tabela). Ajuste para que cada capítulo tenha um número único antes de exportar.
@@ -773,7 +782,12 @@
                 // Recriar ficha técnica se a categoria ou título mudaram
                 const customDetails = generateSmartDetails(newTitle, newChannel, newCategory);
 
-                finalVideos.push({
+                // displayCategory: lido do atributo data-display-category gravado pelo "Aplicar em lote"
+                // Só é incluído quando diferente da categoria real (evita campo desnecessário no JSON)
+                const rowDisplayCat = row.dataset.displayCategory || '';
+                const exportDisplayCat = (rowDisplayCat && rowDisplayCat !== newCategory) ? rowDisplayCat : undefined;
+
+                const exportEntry = {
                     id: `yt_${video.videoId}_${Date.now()}_${originalIdx}`,
                     url: video.url,
                     videoId: video.videoId,
@@ -793,7 +807,9 @@
                     seriesName: newSeriesName,
                     episodeOrder: newEpisodeOrder,
                     createdAt: new Date().getTime() + originalIdx // incrementa para manter ordem de inserção
-                });
+                };
+                if (exportDisplayCat) exportEntry.displayCategory = exportDisplayCat;
+                finalVideos.push(exportEntry);
             });
 
             // Baixar JSON
@@ -1271,10 +1287,14 @@
                     return;
                 }
 
+                const bulkDisplayCat = document.getElementById('bulk-display-category')?.value || 'series';
+
                 selectedRows.forEach((row, position) => {
                     row.querySelector('.col-series-name').value = seriesName;
                     row.querySelector('.col-episode-order').value = position + 1;
                     row.querySelector('.col-category').value = 'series';
+                    // Guarda a categoria de exibição como atributo de dados na linha para uso na exportação
+                    row.dataset.displayCategory = (bulkDisplayCat !== 'series') ? bulkDisplayCat : '';
                 });
 
                 checkForDuplicateOrders();

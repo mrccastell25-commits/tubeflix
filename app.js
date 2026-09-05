@@ -515,6 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     loadYoutubeIFrameAPI();
     toggleSeriesOrderFields();
+    toggleDisplayCategoryField();
     applyGridDensityPreference();
     applyCategoryLabels();
 });
@@ -606,9 +607,12 @@ function setupEventListeners() {
         navMobileBackdrop.addEventListener('click', closeMobileNav);
     }
 
-    // Alterna a exibição dos campos de ordenação de série conforme a categoria
+    // Alterna a exibição dos campos de ordenação de série e de categoria de exibição conforme a categoria
     if (newCategorySelect) {
-        newCategorySelect.addEventListener('change', toggleSeriesOrderFields);
+        newCategorySelect.addEventListener('change', () => {
+            toggleSeriesOrderFields();
+            toggleDisplayCategoryField();
+        });
 
         // Garante que o campo "Ordem / Nº do Episódio" só aceite dígitos (campo de texto simples, sem setinhas)
         if (newEpisodeOrder) {
@@ -954,13 +958,20 @@ function setupEventListeners() {
         const rawUrl = newUrlInput.value.trim();
         const source = parseVideoSource(rawUrl) || { sourceType: null, videoId: null, embedUrl: null };
 
+        const selectedCategory = document.getElementById('new-category').value;
+        const rawDisplayCategory = document.getElementById('new-display-category')?.value || '';
+        // displayCategory só faz sentido quando diferente da categoria real; se igual ou vazio, não salva
+        const displayCategory = (rawDisplayCategory && rawDisplayCategory !== selectedCategory)
+            ? rawDisplayCategory
+            : null;
+
         const videoData = {
             url: rawUrl,
             sourceType: source.sourceType,
             videoId: source.videoId,
             embedUrl: source.embedUrl,
             title: document.getElementById('new-title').value.trim(),
-            category: document.getElementById('new-category').value,
+            category: selectedCategory,
             rating: document.getElementById('new-rating').value,
             duration: document.getElementById('new-duration').value.trim(),
             year: parseInt(document.getElementById('new-year').value),
@@ -972,10 +983,13 @@ function setupEventListeners() {
             imagePosY: parseFloat(newImagePosY.value) || 50,
             imageZoom: parseFloat(newImageZoom.value) || DEFAULT_POSTER_ZOOM,
             featured: document.getElementById('new-featured').checked,
-            seriesName: (document.getElementById('new-category').value === 'series') ? newSeriesName.value.trim() : '',
-            episodeOrder: (document.getElementById('new-category').value === 'series' && newEpisodeOrder.value !== '') ? parseFloat(newEpisodeOrder.value) : null,
+            seriesName: (selectedCategory === 'series') ? newSeriesName.value.trim() : '',
+            episodeOrder: (selectedCategory === 'series' && newEpisodeOrder.value !== '') ? parseFloat(newEpisodeOrder.value) : null,
             createdAt: new Date().getTime()
         };
+
+        // Só inclui displayCategory quando tem valor (evita gravar null desnecessariamente no Firebase)
+        if (displayCategory) videoData.displayCategory = displayCategory;
 
         if (!source.sourceType) {
             alert("Link de vídeo inválido. Verifique se começa com http:// ou https://");
@@ -1109,6 +1123,47 @@ function toggleSeriesOrderFields() {
     if (!seriesOrderFields || !newCategorySelect) return;
     const isSeries = newCategorySelect.value === 'series';
     seriesOrderFields.classList.toggle('hidden', !isSeries);
+}
+
+// Mostra/oculta o campo "Exibir na lista de" e atualiza suas opções conforme a categoria selecionada.
+// O campo só aparece quando há mais de uma categoria disponível para escolher (sempre verdade com as 4 padrão).
+// A opção correspondente à própria categoria do vídeo é ocultada do select para evitar redundância.
+function toggleDisplayCategoryField() {
+    const group = document.getElementById('display-category-group');
+    const select = document.getElementById('new-display-category');
+    const hint = document.getElementById('display-category-hint');
+    if (!group || !select || !newCategorySelect) return;
+
+    const currentCat = newCategorySelect.value;
+
+    // Rebuild das opções do select de categorias customizadas (mantém sincronizado com o admin)
+    // Remove opções customizadas antigas antes de recriar
+    Array.from(select.options).forEach(opt => {
+        if (opt.value && opt.getAttribute('data-custom')) opt.remove();
+    });
+    getCustomCategories().forEach(cat => {
+        if (!select.querySelector(`option[value="${cat.key}"]`)) {
+            const opt = document.createElement('option');
+            opt.value = cat.key;
+            opt.textContent = cat.label;
+            opt.setAttribute('data-custom', '1');
+            select.appendChild(opt);
+        }
+    });
+
+    // Oculta a opção que corresponde à própria categoria (seria redundante escolhê-la)
+    Array.from(select.options).forEach(opt => {
+        opt.hidden = (opt.value === currentCat);
+    });
+
+    // Ajusta o hint explicativo conforme a categoria
+    if (currentCat === 'series') {
+        hint.textContent = 'Defina isso no 1º episódio — todos os episódios da mesma série herdarão automaticamente a lista escolhida.';
+    } else {
+        hint.textContent = 'O vídeo aparecerá nessa lista em vez da categoria original.';
+    }
+
+    group.style.display = 'block';
 }
 
 // 6. Carregar Dados de Vídeos (somente Firebase — nada é salvo/lido localmente)
@@ -1595,17 +1650,43 @@ function filterAndRenderRows() {
     const isSearching = currentSearchQuery !== '';
     const activeFilter = activeCategoryFilter;
 
+    // Resolve a categoria de exibição de cada vídeo:
+    // - Vídeos avulsos usam displayCategory se definido, senão category.
+    // - Para séries: se o primeiro episódio (menor episodeOrder) tiver displayCategory, todos os
+    //   episódios da mesma série herdam esse valor automaticamente.
+    const seriesDisplayCategoryMap = {}; // seriesName.toLowerCase() -> displayCategory herdada
+    allVideos.forEach(v => {
+        if (v.category !== 'series' || !v.seriesName || !v.displayCategory) return;
+        const key = v.seriesName.trim().toLowerCase();
+        const currentOrder = v.episodeOrder != null ? Number(v.episodeOrder) : Infinity;
+        if (
+            !seriesDisplayCategoryMap[key] ||
+            currentOrder < (seriesDisplayCategoryMap[key]._order ?? Infinity)
+        ) {
+            seriesDisplayCategoryMap[key] = { cat: v.displayCategory, _order: currentOrder };
+        }
+    });
+
+    // Retorna a categoria que deve ser usada para EXIBIR o vídeo nas fileiras
+    function getDisplayCategory(v) {
+        if (v.category === 'series' && v.seriesName) {
+            const key = v.seriesName.trim().toLowerCase();
+            if (seriesDisplayCategoryMap[key]) return seriesDisplayCategoryMap[key].cat;
+        }
+        return v.displayCategory || v.category;
+    }
+
     // Seletor de categorias e suas respectivas fileiras (inclui as categorias personalizadas criadas pelo admin)
     const rows = [
         { key: 'destaques', id: 'section-destaques', filterFn: v => v.featured || v.createdAt },
-        { key: 'filmes', id: 'section-filmes', filterFn: v => v.category === 'filmes' },
-        { key: 'series', id: 'section-series', filterFn: v => v.category === 'series' },
-        { key: 'documentarios', id: 'section-documentarios', filterFn: v => v.category === 'documentarios' },
-        { key: 'tutoriais', id: 'section-tutoriais', filterFn: v => v.category === 'tutoriais' },
+        { key: 'filmes', id: 'section-filmes', filterFn: v => getDisplayCategory(v) === 'filmes' },
+        { key: 'series', id: 'section-series', filterFn: v => getDisplayCategory(v) === 'series' },
+        { key: 'documentarios', id: 'section-documentarios', filterFn: v => getDisplayCategory(v) === 'documentarios' },
+        { key: 'tutoriais', id: 'section-tutoriais', filterFn: v => getDisplayCategory(v) === 'tutoriais' },
         ...getCustomCategories().map(cat => ({
             key: cat.key,
             id: `section-${cat.key}`,
-            filterFn: v => v.category === cat.key
+            filterFn: v => getDisplayCategory(v) === cat.key
         }))
     ];
 
@@ -2045,12 +2126,21 @@ function handlePlayerError(event) {
 
 // Exibe o modal de vídeo bloqueado (embed não permitido pelo dono): o vídeo foi aberto no YouTube
 // em nova aba, e aqui o usuário escolhe o que fazer ao voltar ao app — assistir o próximo episódio
-// da série ou encerrar a sessão. Se for o último episódio, apenas a opção de encerrar é exibida.
+// da série ou encerrar a sessão.
+// IMPORTANTE: o modal SÓ é exibido quando existe um próximo episódio. Se for um vídeo avulso ou o
+// último da série, o player é simplesmente fechado (o vídeo já foi aberto no YouTube em nova aba).
 function showBlockedVideoModal(video) {
     const modal = document.getElementById('blocked-video-modal');
     if (!modal) return;
 
     const nextEpisode = findNextEpisode(video);
+
+    // Sem próximo: fecha o player silenciosamente — o vídeo já está aberto no YouTube
+    if (!nextEpisode) {
+        closePlayerModal();
+        return;
+    }
+
     const btnNext = document.getElementById('blocked-video-btn-next');
     const btnClose = document.getElementById('blocked-video-btn-close');
     const titleEl = document.getElementById('blocked-video-title');
@@ -2060,16 +2150,11 @@ function showBlockedVideoModal(video) {
     }
 
     if (btnNext) {
-        if (nextEpisode) {
-            btnNext.classList.remove('hidden');
-            btnNext.onclick = () => {
-                closeBlockedVideoModal();
-                openPlayerModal(nextEpisode);
-            };
-        } else {
-            // Último episódio: esconde o botão de próximo
-            btnNext.classList.add('hidden');
-        }
+        btnNext.classList.remove('hidden');
+        btnNext.onclick = () => {
+            closeBlockedVideoModal();
+            openPlayerModal(nextEpisode);
+        };
     }
 
     if (btnClose) {
@@ -2472,7 +2557,10 @@ window.prepareEditVideo = function(id) {
     document.getElementById('new-featured').checked = video.featured || false;
     newSeriesName.value = video.seriesName || "";
     newEpisodeOrder.value = (video.episodeOrder != null) ? video.episodeOrder : "";
+    const displayCatSelect = document.getElementById('new-display-category');
+    if (displayCatSelect) displayCatSelect.value = video.displayCategory || '';
     toggleSeriesOrderFields();
+    toggleDisplayCategoryField();
 
     // Atualizar títulos do painel
     formActionTitle.textContent = "Editar Vídeo";
@@ -2512,6 +2600,9 @@ function resetForm() {
     newImageZoom.value = DEFAULT_POSTER_ZOOM;
     applyImageAlignToPreview();
     toggleSeriesOrderFields();
+    toggleDisplayCategoryField();
+    const displayCatSelectReset = document.getElementById('new-display-category');
+    if (displayCatSelectReset) displayCatSelectReset.value = '';
     formActionTitle.textContent = "Adicionar Novo Vídeo";
     btnCancelEdit.classList.add('hidden');
     document.getElementById('btn-save-video').innerHTML = `<i data-lucide="check"></i> Salvar Vídeo`;

@@ -2247,35 +2247,57 @@ function findPrevEpisode(video) {
     return siblings[currentIndex - 1];
 }
 
-// Atualiza a visibilidade dos botões de navegação (anterior/próximo) do player.
-// Os botões só aparecem quando existir um episódio correspondente — nunca para vídeos avulsos
-// ou quando já estiver no primeiro/último capítulo da série.
+// Atualiza botões de navegação (desktop) e swipe (mobile).
+// Botões só aparecem quando existir episódio anterior/próximo — nunca para vídeos avulsos
+// ou quando já estiver no primeiro/último capítulo.
 function updatePlayerNavButtons(video) {
     const prev = findPrevEpisode(video);
     const next = findNextEpisode(video);
 
-    // Desktop (lateral)
+    // Desktop: botões laterais
     const btnPrev = document.getElementById('player-btn-prev');
     const btnNext = document.getElementById('player-btn-next');
-    if (btnPrev) btnPrev.classList.toggle('hidden', !prev);
-    if (btnNext) btnNext.classList.toggle('hidden', !next);
+    if (btnPrev) { btnPrev.classList.toggle('hidden', !prev); btnPrev.onclick = prev ? () => openPlayerModal(prev) : null; }
+    if (btnNext) { btnNext.classList.toggle('hidden', !next); btnNext.onclick = next ? () => openPlayerModal(next) : null; }
 
-    // Mobile (abaixo do vídeo)
-    const btnPrevM = document.getElementById('player-btn-prev-mobile');
-    const btnNextM = document.getElementById('player-btn-next-mobile');
-    const navMobile = document.getElementById('player-nav-mobile');
-
-    if (btnPrevM) btnPrevM.classList.toggle('hidden', !prev);
-    if (btnNextM) btnNextM.classList.toggle('hidden', !next);
-    // Oculta a barra mobile inteira se não houver nenhum dos dois
-    if (navMobile) navMobile.style.display = (!prev && !next) ? 'none' : '';
-
-    // Conecta os cliques aos episódios encontrados
-    if (btnPrev) btnPrev.onclick = prev ? () => openPlayerModal(prev) : null;
-    if (btnNext) btnNext.onclick = next ? () => openPlayerModal(next) : null;
-    if (btnPrevM) btnPrevM.onclick = prev ? () => openPlayerModal(prev) : null;
-    if (btnNextM) btnNextM.onclick = next ? () => openPlayerModal(next) : null;
+    // Mobile: swipe horizontal no container do player
+    // Registra os episódios que o swipe vai navegar (null = sem navegação nessa direção)
+    playerModal._swipePrev = prev;
+    playerModal._swipeNext = next;
 }
+
+// Swipe horizontal no player modal para navegar entre episódios (mobile)
+// Um swipe é reconhecido quando o deslize horizontal supera 60px e é maior que o vertical (não é scroll)
+;(function initPlayerSwipe() {
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const modal = document.getElementById('player-modal');
+        if (!modal) return;
+
+        modal.addEventListener('touchstart', e => {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+
+        modal.addEventListener('touchend', e => {
+            const dx = e.changedTouches[0].clientX - touchStartX;
+            const dy = e.changedTouches[0].clientY - touchStartY;
+
+            // Ignora se for mais vertical que horizontal (scroll normal)
+            if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return;
+
+            if (dx < 0 && modal._swipeNext) {
+                // Swipe para a esquerda → próximo episódio
+                openPlayerModal(modal._swipeNext);
+            } else if (dx > 0 && modal._swipePrev) {
+                // Swipe para a direita → episódio anterior
+                openPlayerModal(modal._swipePrev);
+            }
+        }, { passive: true });
+    });
+})();
 
 // Mantida por compatibilidade (chamada ao abrir/fechar o player) — hoje só limpa variáveis de estado,
 // já que o antigo aviso com contagem regressiva foi removido (episódios avançam sem intervalo)

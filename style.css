@@ -1029,7 +1029,7 @@ body {
     background-color: #000000;
 }
 
-/* Botões de navegação lateral (desktop) */
+/* Botões de navegação lateral (desktop apenas) */
 .btn-player-nav {
     position: fixed;
     top: 50%;
@@ -1059,42 +1059,9 @@ body {
 .btn-player-prev { left: calc(50% - 475px - 64px); }
 .btn-player-next { right: calc(50% - 475px - 64px); }
 
-/* Botões móveis: ocultos no desktop */
-.player-nav-mobile { display: none; }
-
-@media (max-width: 1100px) {
-    /* Em telas menores o card ocupa quase tudo — botões laterais somem */
+/* No mobile os botões laterais somem — navegação é feita por swipe */
+@media (max-width: 768px) {
     .btn-player-nav { display: none !important; }
-
-    /* Botões móveis aparecem abaixo do vídeo */
-    .player-nav-mobile {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 10px 16px;
-        background: #111;
-        border-top: 1px solid var(--border-color);
-    }
-
-    .btn-player-nav-mobile {
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        padding: 10px;
-        border-radius: 6px;
-        background: rgba(255,255,255,0.07);
-        border: 1px solid rgba(255,255,255,0.12);
-        color: #fff;
-        font-size: 0.85rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: background 0.2s;
-    }
-
-    .btn-player-nav-mobile:hover { background: rgba(229,9,20,0.75); }
-    .btn-player-nav-mobile.hidden { display: none; }
 }
 
 .video-iframe-wrapper iframe {

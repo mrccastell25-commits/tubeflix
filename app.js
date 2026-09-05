@@ -2271,29 +2271,98 @@ function updatePlayerNavButtons(video) {
 ;(function initPlayerSwipe() {
     let touchStartX = 0;
     let touchStartY = 0;
+    let isDragging = false;   // true após confirmar que o gesto é horizontal
+    let cancelled = false;    // true se o gesto virou scroll vertical — ignora o touchend
 
     document.addEventListener('DOMContentLoaded', () => {
         const modal = document.getElementById('player-modal');
         if (!modal) return;
+        const card = modal.querySelector('.player-modal-container');
+        if (!card) return;
+
+        // Garante transição suave ao soltar ou ao voltar para posição original
+        function setTransition(on) {
+            card.style.transition = on ? 'transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.3s' : 'none';
+        }
+
+        // Desloca o card visualmente enquanto o dedo arrasta
+        function applyDrag(dx) {
+            // Resistência: após 120px o deslocamento abranda (como elástico)
+            const resistance = Math.abs(dx) > 120 ? 120 + (Math.abs(dx) - 120) * 0.25 : Math.abs(dx);
+            const translated = dx < 0 ? -resistance : resistance;
+            const opacity = 1 - Math.min(Math.abs(translated) / 300, 0.35);
+            card.style.transform = `translateX(${translated}px)`;
+            card.style.opacity = opacity;
+        }
+
+        // Anima o card saindo para o lado e abre o próximo vídeo
+        function swipeTo(targetVideo, direction) {
+            setTransition(true);
+            card.style.transform = `translateX(${direction === 'left' ? '-110%' : '110%'})`;
+            card.style.opacity = '0';
+            setTimeout(() => {
+                card.style.transition = 'none';
+                card.style.transform = `translateX(${direction === 'left' ? '60%' : '-60%'})`;
+                card.style.opacity = '0';
+                openPlayerModal(targetVideo);
+                // Pequeno delay para o DOM atualizar antes de animar a entrada
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        setTransition(true);
+                        card.style.transform = 'translateX(0)';
+                        card.style.opacity = '1';
+                    });
+                });
+            }, 280);
+        }
+
+        // Volta o card para o centro com animação (swipe cancelado ou sem episódio)
+        function snapBack() {
+            setTransition(true);
+            card.style.transform = 'translateX(0)';
+            card.style.opacity = '1';
+        }
 
         modal.addEventListener('touchstart', e => {
             touchStartX = e.touches[0].clientX;
             touchStartY = e.touches[0].clientY;
+            isDragging = false;
+            cancelled = false;
+            setTransition(false);
+        }, { passive: true });
+
+        modal.addEventListener('touchmove', e => {
+            const dx = e.touches[0].clientX - touchStartX;
+            const dy = e.touches[0].clientY - touchStartY;
+
+            if (!isDragging && !cancelled) {
+                // Ainda não definiu o gesto: espera 8px de movimento para decidir
+                if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+                if (Math.abs(dy) > Math.abs(dx)) {
+                    cancelled = true; // gesto vertical — não interfere com scroll
+                    return;
+                }
+                isDragging = true;
+            }
+
+            if (cancelled || !isDragging) return;
+
+            applyDrag(dx);
         }, { passive: true });
 
         modal.addEventListener('touchend', e => {
+            if (cancelled || !isDragging) return;
+
             const dx = e.changedTouches[0].clientX - touchStartX;
-            const dy = e.changedTouches[0].clientY - touchStartY;
+            isDragging = false;
 
-            // Ignora se for mais vertical que horizontal (scroll normal)
-            if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return;
-
-            if (dx < 0 && modal._swipeNext) {
-                // Swipe para a esquerda → próximo episódio
-                openPlayerModal(modal._swipeNext);
-            } else if (dx > 0 && modal._swipePrev) {
-                // Swipe para a direita → episódio anterior
-                openPlayerModal(modal._swipePrev);
+            // Threshold: 80px para confirmar a troca
+            if (dx < -80 && modal._swipeNext) {
+                swipeTo(modal._swipeNext, 'left');
+            } else if (dx > 80 && modal._swipePrev) {
+                swipeTo(modal._swipePrev, 'right');
+            } else {
+                snapBack(); // não passou do threshold ou não há episódio nessa direção
             }
         }, { passive: true });
     });

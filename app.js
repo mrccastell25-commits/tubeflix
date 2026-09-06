@@ -2276,8 +2276,8 @@ function updatePlayerNavButtons(video) {
     // Desktop: botões laterais
     const btnPrev = document.getElementById('player-btn-prev');
     const btnNext = document.getElementById('player-btn-next');
-    if (btnPrev) { btnPrev.classList.toggle('hidden', !prev); btnPrev.onclick = prev ? () => openPlayerModal(prev) : null; }
-    if (btnNext) { btnNext.classList.toggle('hidden', !next); btnNext.onclick = next ? () => openPlayerModal(next) : null; }
+    if (btnPrev) { btnPrev.classList.toggle('hidden', !prev); btnPrev.onclick = prev ? () => { playerModal._navigatingEpisodes = true; openPlayerModal(prev); } : null; }
+    if (btnNext) { btnNext.classList.toggle('hidden', !next); btnNext.onclick = next ? () => { playerModal._navigatingEpisodes = true; openPlayerModal(next); } : null; }
 
     // Guarda referências para o menu do player (mobile e desktop)
     const playerModal = document.getElementById('player-modal');
@@ -2310,10 +2310,25 @@ function updatePlayerNavButtons(video) {
             overlay.classList.add('hidden');
         }
 
-        // Botão azul Menu: abre o overlay
+        // Botão Menu:
+        // - Desktop (>768px): age como Fechar (fecha o player diretamente)
+        // - Mobile (≤768px): abre o overlay com os botões de navegação e Voltar
         menuBtn.addEventListener('click', e => {
             e.stopPropagation();
-            overlay.classList.contains('hidden') ? openMenu() : closeMenu();
+            if (window.innerWidth > 768) {
+                // Desktop — fecha e volta para tela de origem
+                closeMenu();
+                const returnToSeries     = playerModal._returnToSeries;
+                const snapshotEpisodes   = playerModal._snapshotEpisodes;
+                const snapshotRepresentative = playerModal._snapshotRepresentative;
+                closePlayerModal();
+                if (returnToSeries && snapshotEpisodes && snapshotRepresentative) {
+                    setTimeout(() => openSeriesEpisodesModal(snapshotEpisodes, snapshotRepresentative), 80);
+                }
+            } else {
+                // Mobile — toggle do overlay
+                overlay.classList.contains('hidden') ? openMenu() : closeMenu();
+            }
         });
 
         // Clicar no fundo do overlay (fora dos botões) fecha o menu
@@ -2326,7 +2341,10 @@ function updatePlayerNavButtons(video) {
             menuPrev.addEventListener('click', e => {
                 e.stopPropagation();
                 closeMenu();
-                if (modal._swipePrev) openPlayerModal(modal._swipePrev);
+                if (modal._swipePrev) {
+                    playerModal._navigatingEpisodes = true;
+                    openPlayerModal(modal._swipePrev);
+                }
             });
         }
 
@@ -2335,25 +2353,27 @@ function updatePlayerNavButtons(video) {
             menuNext.addEventListener('click', e => {
                 e.stopPropagation();
                 closeMenu();
-                if (modal._swipeNext) openPlayerModal(modal._swipeNext);
+                if (modal._swipeNext) {
+                    playerModal._navigatingEpisodes = true;
+                    openPlayerModal(modal._swipeNext);
+                }
             });
         }
 
-        // Voltar: fecha o player e reabre a tela de capítulos se veio de uma série
+        // Voltar: fecha o player e retorna para a tela de onde veio
         if (menuClose) {
             menuClose.addEventListener('click', e => {
                 e.stopPropagation();
                 closeMenu();
+                const returnToSeries     = playerModal._returnToSeries;
+                const snapshotEpisodes   = playerModal._snapshotEpisodes;
+                const snapshotRepresentative = playerModal._snapshotRepresentative;
                 closePlayerModal();
-                // Se o episódio veio de uma série, reabre a lista de capítulos
-                if (window._lastSeriesEpisodes && window._lastSeriesRepresentative) {
-                    setTimeout(() => {
-                        openSeriesEpisodesModal(
-                            window._lastSeriesEpisodes,
-                            window._lastSeriesRepresentative
-                        );
-                    }, 120); // pequeno delay para o player fechar antes de abrir a lista
+                if (returnToSeries && snapshotEpisodes && snapshotRepresentative) {
+                    // Veio da tela de capítulos → reabre
+                    setTimeout(() => openSeriesEpisodesModal(snapshotEpisodes, snapshotRepresentative), 80);
                 }
+                // Se veio de uma lista comum (filmes, etc.), closePlayerModal já volta para ela
             });
         }
     });
@@ -2377,6 +2397,23 @@ function openPlayerModal(video) {
     // Cancela qualquer contagem de "próximo capítulo" pendente do vídeo anterior
     cancelNextEpisodeCountdown();
     currentPlayingVideo = video;
+
+    // Registra de onde o player foi aberto para o botão "Voltar" saber para onde retornar.
+    // Só atualiza se NÃO for uma navegação entre episódios (prev/next) — nesses casos a
+    // tela de origem já está registrada e não deve ser sobrescrita.
+    if (!playerModal._navigatingEpisodes) {
+        const seriesModal = document.getElementById('modal-series-episodes');
+        playerModal._returnToSeries = seriesModal && !seriesModal.classList.contains('hidden');
+        // Guarda snapshot da série no momento da abertura (não referência global mutável)
+        if (playerModal._returnToSeries && window._lastSeriesEpisodes) {
+            playerModal._snapshotEpisodes = window._lastSeriesEpisodes;
+            playerModal._snapshotRepresentative = window._lastSeriesRepresentative;
+        } else {
+            playerModal._snapshotEpisodes = null;
+            playerModal._snapshotRepresentative = null;
+        }
+    }
+    playerModal._navigatingEpisodes = false;
 
     // Registra no histórico de "assistidos recentemente" (usado para popular a fileira "Minha Lista")
     recordWatchHistory(video.id);

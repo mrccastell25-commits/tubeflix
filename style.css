@@ -1009,7 +1009,7 @@ body {
     flex-shrink: 0;
     padding: 6px 14px;
     border-radius: 6px;
-    background-color: #2b6cb0;
+    background-color: var(--netflix-red); /* desktop: age como Fechar */
     border: none;
     color: #fff;
     font-size: 0.8rem;
@@ -1020,7 +1020,32 @@ body {
     transition: background-color var(--transition-fast);
     white-space: nowrap;
 }
-.btn-player-menu:hover { background-color: #245a99; }
+.btn-player-menu:hover { background-color: #f40612; }
+
+/* Mobile: vira Menu azul */
+@media (max-width: 768px) {
+    .btn-player-menu {
+        background-color: #2b6cb0;
+    }
+    .btn-player-menu:hover { background-color: #245a99; }
+}
+
+/* Botões de fechar posicionados absolutamente (random-pick, series-episodes) */
+.btn-close-player {
+    padding: 6px 16px;
+    border-radius: 5px;
+    background-color: var(--netflix-red);
+    border: none;
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color var(--transition-fast);
+}
+.btn-close-player:hover { background-color: #f40612; }
 
 /* Overlay do menu — cobre apenas o player-info-container (área de texto abaixo do vídeo) */
 .player-menu-overlay {

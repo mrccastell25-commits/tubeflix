@@ -2291,10 +2291,10 @@ function updatePlayerNavButtons(video) {
     let hideTimer = null;
 
     document.addEventListener('DOMContentLoaded', () => {
-        const modal      = document.getElementById('player-modal');
-        const navBar     = document.getElementById('mobile-nav-buttons');
-        const btnPrev    = document.getElementById('btn-mobile-prev');
-        const btnNext    = document.getElementById('btn-mobile-next');
+        const modal    = document.getElementById('player-modal');
+        const navBar   = document.getElementById('mobile-nav-buttons');
+        const btnPrev  = document.getElementById('btn-mobile-prev');
+        const btnNext  = document.getElementById('btn-mobile-next');
         if (!modal || !navBar || !btnPrev || !btnNext) return;
 
         function showNavButtons() {
@@ -2313,34 +2313,28 @@ function updatePlayerNavButtons(video) {
             navBar.classList.remove('visible');
         }
 
-        // Listener direto no player-info-container (área abaixo do vídeo).
-        // Não depende de cálculo de posição — qualquer toque nessa área dispara os botões.
-        // É adicionado depois que o modal abre (via openPlayerModal) para garantir que o
-        // elemento já está no DOM e visível.
-        function attachInfoListener() {
-            const infoContainer = modal.querySelector('.player-info-container');
-            if (!infoContainer || infoContainer._navListenerAttached) return;
-            infoContainer._navListenerAttached = true;
-
-            infoContainer.addEventListener('touchstart', e => {
-                if (!btnPrev.contains(e.target) && !btnNext.contains(e.target)) {
-                    showNavButtons();
-                }
-            }, { passive: true });
-
-            // Fallback click para telas touch que só disparam click
-            infoContainer.addEventListener('click', e => {
-                if (!btnPrev.contains(e.target) && !btnNext.contains(e.target)) {
-                    showNavButtons();
-                }
-            });
+        // Elementos que NÃO devem disparar os botões quando tocados
+        function isExcluded(target) {
+            const iframeWrap  = modal.querySelector('.video-iframe-wrapper');
+            const closeBtn    = document.getElementById('close-player-btn');
+            const navButtons  = document.getElementById('mobile-nav-buttons');
+            return (iframeWrap  && iframeWrap.contains(target))  ||
+                   (closeBtn    && closeBtn.contains(target))     ||
+                   (navButtons  && navButtons.contains(target));
         }
 
-        // Observa quando o modal sai do estado hidden para anexar o listener
-        const observer = new MutationObserver(() => {
-            if (!modal.classList.contains('hidden')) attachInfoListener();
-        });
-        observer.observe(modal, { attributes: true, attributeFilter: ['class'] });
+        // Listener no player-modal-container (o card branco): captura qualquer toque
+        // fora do vídeo e fora do botão Fechar
+        const card = modal.querySelector('.player-modal-container');
+        if (card) {
+            card.addEventListener('touchstart', e => {
+                if (!isExcluded(e.target)) showNavButtons();
+            }, { passive: true });
+
+            card.addEventListener('click', e => {
+                if (!isExcluded(e.target)) showNavButtons();
+            });
+        }
 
         btnPrev.addEventListener('click', e => {
             e.stopPropagation();

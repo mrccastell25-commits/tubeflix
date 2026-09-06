@@ -2272,6 +2272,7 @@ function findPrevEpisode(video) {
 function updatePlayerNavButtons(video) {
     const prev = findPrevEpisode(video);
     const next = findNextEpisode(video);
+    const isSeries = !!(prev || next); // tem episódios adjacentes → é série
 
     // Desktop: botões laterais
     const btnPrev = document.getElementById('player-btn-prev');
@@ -2279,11 +2280,27 @@ function updatePlayerNavButtons(video) {
     if (btnPrev) { btnPrev.classList.toggle('hidden', !prev); btnPrev.onclick = prev ? () => { playerModal._navigatingEpisodes = true; openPlayerModal(prev); } : null; }
     if (btnNext) { btnNext.classList.toggle('hidden', !next); btnNext.onclick = next ? () => { playerModal._navigatingEpisodes = true; openPlayerModal(next); } : null; }
 
-    // Guarda referências para o menu do player (mobile e desktop)
+    // Guarda referências de navegação
     const playerModal = document.getElementById('player-modal');
     if (playerModal) {
         playerModal._swipePrev = prev;
         playerModal._swipeNext = next;
+    }
+
+    // Atualiza o botão Menu/Fechar conforme contexto:
+    // - Desktop: sempre "FECHAR" vermelho
+    // - Mobile + série: "MENU" azul (abre overlay com nav + voltar)
+    // - Mobile + filme avulso: "FECHAR" vermelho (fecha direto)
+    const menuBtn = document.getElementById('btn-player-menu');
+    if (menuBtn) {
+        const isMobile = window.innerWidth <= 768;
+        if (isMobile && isSeries) {
+            menuBtn.textContent = 'Menu';
+            menuBtn.dataset.mode = 'menu';
+        } else {
+            menuBtn.textContent = 'Fechar';
+            menuBtn.dataset.mode = 'close';
+        }
     }
 }
 
@@ -2310,24 +2327,23 @@ function updatePlayerNavButtons(video) {
             overlay.classList.add('hidden');
         }
 
-        // Botão Menu:
-        // - Desktop (>768px): age como Fechar (fecha o player diretamente)
-        // - Mobile (≤768px): abre o overlay com os botões de navegação e Voltar
+        // Botão Menu/Fechar:
+        // data-mode="close" → fecha o player e volta para tela de origem
+        // data-mode="menu"  → abre overlay (mobile + série)
         menuBtn.addEventListener('click', e => {
             e.stopPropagation();
-            if (window.innerWidth > 768) {
-                // Desktop — fecha e volta para tela de origem
+            if (menuBtn.dataset.mode === 'menu') {
+                overlay.classList.contains('hidden') ? openMenu() : closeMenu();
+            } else {
+                // Modo fechar — volta para tela de origem
                 closeMenu();
-                const returnToSeries     = playerModal._returnToSeries;
-                const snapshotEpisodes   = playerModal._snapshotEpisodes;
+                const returnToSeries        = playerModal._returnToSeries;
+                const snapshotEpisodes      = playerModal._snapshotEpisodes;
                 const snapshotRepresentative = playerModal._snapshotRepresentative;
                 closePlayerModal();
                 if (returnToSeries && snapshotEpisodes && snapshotRepresentative) {
                     setTimeout(() => openSeriesEpisodesModal(snapshotEpisodes, snapshotRepresentative), 80);
                 }
-            } else {
-                // Mobile — toggle do overlay
-                overlay.classList.contains('hidden') ? openMenu() : closeMenu();
             }
         });
 

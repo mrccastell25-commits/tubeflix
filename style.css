@@ -1009,7 +1009,7 @@ body {
     flex-shrink: 0;
     padding: 6px 14px;
     border-radius: 6px;
-    background-color: var(--netflix-red); /* desktop: age como Fechar */
+    background-color: var(--netflix-red); /* padrão: Fechar vermelho */
     border: none;
     color: #fff;
     font-size: 0.8rem;
@@ -1022,13 +1022,9 @@ body {
 }
 .btn-player-menu:hover { background-color: #f40612; }
 
-/* Mobile: vira Menu azul */
-@media (max-width: 768px) {
-    .btn-player-menu {
-        background-color: #2b6cb0;
-    }
-    .btn-player-menu:hover { background-color: #245a99; }
-}
+/* Quando JS define data-mode="menu" (mobile + série): vira azul */
+.btn-player-menu[data-mode="menu"] { background-color: #2b6cb0; }
+.btn-player-menu[data-mode="menu"]:hover { background-color: #245a99; }
 
 /* Botões de fechar posicionados absolutamente (random-pick, series-episodes) */
 .btn-close-player {

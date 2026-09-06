@@ -2279,74 +2279,77 @@ function updatePlayerNavButtons(video) {
     if (btnPrev) { btnPrev.classList.toggle('hidden', !prev); btnPrev.onclick = prev ? () => openPlayerModal(prev) : null; }
     if (btnNext) { btnNext.classList.toggle('hidden', !next); btnNext.onclick = next ? () => openPlayerModal(next) : null; }
 
-    // Mobile: swipe horizontal no container do player
-    // Registra os episódios que o swipe vai navegar (null = sem navegação nessa direção)
-    playerModal._swipePrev = prev;
-    playerModal._swipeNext = next;
+    // Guarda referências para o menu do player (mobile e desktop)
+    const playerModal = document.getElementById('player-modal');
+    if (playerModal) {
+        playerModal._swipePrev = prev;
+        playerModal._swipeNext = next;
+    }
 }
 
 // Swipe horizontal no player modal para navegar entre episódios (mobile)
 // Um swipe é reconhecido quando o deslize horizontal supera 60px e é maior que o vertical (não é scroll)
-;(function initMobilePlayerNav() {
-    let hideTimer = null;
-
+;(function initPlayerMenu() {
     document.addEventListener('DOMContentLoaded', () => {
-        const modal    = document.getElementById('player-modal');
-        const navBar   = document.getElementById('mobile-nav-buttons');
-        const btnPrev  = document.getElementById('btn-mobile-prev');
-        const btnNext  = document.getElementById('btn-mobile-next');
-        if (!modal || !navBar || !btnPrev || !btnNext) return;
+        const modal      = document.getElementById('player-modal');
+        const menuBtn    = document.getElementById('btn-player-menu');
+        const menuPanel  = document.getElementById('player-menu-panel');
+        const menuPrev   = document.getElementById('player-menu-prev');
+        const menuNext   = document.getElementById('player-menu-next');
+        const menuClose  = document.getElementById('close-player-btn');
+        if (!modal || !menuBtn || !menuPanel) return;
 
-        function showNavButtons() {
-            const hasPrev = !!modal._swipePrev;
-            const hasNext = !!modal._swipeNext;
-            if (!hasPrev && !hasNext) return;
-            btnPrev.classList.toggle('hidden', !hasPrev);
-            btnNext.classList.toggle('hidden', !hasNext);
-            navBar.classList.add('visible');
-            clearTimeout(hideTimer);
-            hideTimer = setTimeout(() => navBar.classList.remove('visible'), 3000);
+        function openMenu() {
+            // Atualiza estado dos itens conforme episódios disponíveis
+            if (menuPrev) menuPrev.classList.toggle('disabled', !modal._swipePrev);
+            if (menuNext) menuNext.classList.toggle('disabled', !modal._swipeNext);
+            menuPanel.classList.remove('hidden');
         }
 
-        function hideNavButtons() {
-            clearTimeout(hideTimer);
-            navBar.classList.remove('visible');
+        function closeMenu() {
+            menuPanel.classList.add('hidden');
         }
 
-        // Elementos que NÃO devem disparar os botões quando tocados
-        function isExcluded(target) {
-            const iframeWrap  = modal.querySelector('.video-iframe-wrapper');
-            const closeBtn    = document.getElementById('close-player-btn');
-            const navButtons  = document.getElementById('mobile-nav-buttons');
-            return (iframeWrap  && iframeWrap.contains(target))  ||
-                   (closeBtn    && closeBtn.contains(target))     ||
-                   (navButtons  && navButtons.contains(target));
-        }
+        // Botão azul: toggle do menu
+        menuBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            menuPanel.classList.contains('hidden') ? openMenu() : closeMenu();
+        });
 
-        // Listener no player-modal-container (o card branco): captura qualquer toque
-        // fora do vídeo e fora do botão Fechar
-        const card = modal.querySelector('.player-modal-container');
-        if (card) {
-            card.addEventListener('touchstart', e => {
-                if (!isExcluded(e.target)) showNavButtons();
-            }, { passive: true });
+        // Fechar ao clicar fora do menu
+        document.addEventListener('click', e => {
+            if (!menuPanel.contains(e.target) && e.target !== menuBtn) closeMenu();
+        });
+        document.addEventListener('touchstart', e => {
+            if (!menuPanel.contains(e.target) && e.target !== menuBtn) closeMenu();
+        }, { passive: true });
 
-            card.addEventListener('click', e => {
-                if (!isExcluded(e.target)) showNavButtons();
+        // Anterior
+        if (menuPrev) {
+            menuPrev.addEventListener('click', e => {
+                e.stopPropagation();
+                closeMenu();
+                if (modal._swipePrev) openPlayerModal(modal._swipePrev);
             });
         }
 
-        btnPrev.addEventListener('click', e => {
-            e.stopPropagation();
-            hideNavButtons();
-            if (modal._swipePrev) openPlayerModal(modal._swipePrev);
-        });
+        // Próximo
+        if (menuNext) {
+            menuNext.addEventListener('click', e => {
+                e.stopPropagation();
+                closeMenu();
+                if (modal._swipeNext) openPlayerModal(modal._swipeNext);
+            });
+        }
 
-        btnNext.addEventListener('click', e => {
-            e.stopPropagation();
-            hideNavButtons();
-            if (modal._swipeNext) openPlayerModal(modal._swipeNext);
-        });
+        // Fechar player
+        if (menuClose) {
+            menuClose.addEventListener('click', e => {
+                e.stopPropagation();
+                closeMenu();
+                closePlayerModal();
+            });
+        }
     });
 })();
 

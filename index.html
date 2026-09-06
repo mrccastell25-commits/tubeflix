@@ -208,16 +208,6 @@
         </button>
 
         <div class="player-modal-container">
-            <!-- Botões de navegação mobile: círculos com seta, aparecem ao tocar fora do vídeo -->
-            <div class="mobile-nav-buttons hidden" id="mobile-nav-buttons">
-                <button class="btn-mobile-nav btn-mobile-prev hidden" id="btn-mobile-prev" title="Anterior">
-                    <svg viewBox="0 0 24 24" fill="white" width="24" height="24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-                </button>
-                <button class="btn-mobile-nav btn-mobile-next hidden" id="btn-mobile-next" title="Próximo">
-                    <svg viewBox="0 0 24 24" fill="white" width="24" height="24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
-                </button>
-            </div>
-
             <div class="video-iframe-wrapper">
                 <!-- Player do YouTube (IFrame API) inserido dinamicamente -->
                 <div id="youtube-player-placeholder"></div>
@@ -235,8 +225,24 @@
                         <span class="age-rating rating-l" id="modal-video-rating">L</span>
                         <span class="duration" id="modal-video-duration">45m</span>
                         <span class="quality-badge">HD</span>
-                        <button class="btn-close-player" id="close-player-btn" title="Fechar">
-                            Fechar
+                        <button class="btn-player-menu" id="btn-player-menu" title="Menu">
+                            <i data-lucide="menu"></i>
+                        </button>
+                    </div>
+
+                    <!-- Painel de menu do player: aberto pelo botão azul acima -->
+                    <div class="player-menu-panel hidden" id="player-menu-panel">
+                        <button class="player-menu-item" id="player-menu-prev">
+                            <i data-lucide="chevron-left"></i>
+                            <span>Anterior</span>
+                        </button>
+                        <button class="player-menu-item" id="player-menu-next">
+                            <i data-lucide="chevron-right"></i>
+                            <span>Próximo</span>
+                        </button>
+                        <button class="player-menu-item player-menu-close" id="close-player-btn">
+                            <i data-lucide="x"></i>
+                            <span>Fechar</span>
                         </button>
                     </div>
                     <h2 class="player-video-title" id="modal-video-title">Título Completo do Vídeo</h2>

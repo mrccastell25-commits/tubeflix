@@ -2291,64 +2291,66 @@ function updatePlayerNavButtons(video) {
     let hideTimer = null;
 
     document.addEventListener('DOMContentLoaded', () => {
-        const modal      = document.getElementById('player-modal');
-        const navBar     = document.getElementById('mobile-nav-buttons');
-        const btnPrev    = document.getElementById('btn-mobile-prev');
-        const btnNext    = document.getElementById('btn-mobile-next');
-        const iframeWrap = modal ? modal.querySelector('.video-iframe-wrapper') : null;
-        if (!modal || !navBar || !btnPrev || !btnNext || !iframeWrap) return;
+        const modal   = document.getElementById('player-modal');
+        const navBar  = document.getElementById('mobile-nav-buttons');
+        const btnPrev = document.getElementById('btn-mobile-prev');
+        const btnNext = document.getElementById('btn-mobile-next');
+        if (!modal || !navBar || !btnPrev || !btnNext) return;
 
-        // Mostra os botões por 3s e agenda o sumiço automático
         function showNavButtons() {
-            // Só mostra se há pelo menos um episódio adjacente
             const hasPrev = !!modal._swipePrev;
             const hasNext = !!modal._swipeNext;
             if (!hasPrev && !hasNext) return;
 
+            // Usa visibility em vez de hidden/display para não conflitar com CSS
             btnPrev.classList.toggle('hidden', !hasPrev);
             btnNext.classList.toggle('hidden', !hasNext);
-            navBar.classList.remove('hidden');
+            navBar.classList.add('visible');
 
             clearTimeout(hideTimer);
-            hideTimer = setTimeout(() => {
-                navBar.classList.add('hidden');
-            }, 3000);
+            hideTimer = setTimeout(() => navBar.classList.remove('visible'), 3000);
         }
 
-        // Toque fora da área do vídeo → mostra os botões.
-        // Usa a posição Y do toque para detectar se está abaixo do iframe,
-        // pois o iframe do YouTube absorve eventos e contains() não é confiável dentro dele.
-        function isTouchBelowVideo(clientY) {
+        function hideNavButtons() {
+            clearTimeout(hideTimer);
+            navBar.classList.remove('visible');
+        }
+
+        // Detecta se o toque foi ABAIXO do vídeo, calculado no momento do evento
+        // (não na inicialização, quando o modal ainda está hidden e o rect é zero)
+        function isBelowVideo(clientY) {
+            const iframeWrap = modal.querySelector('.video-iframe-wrapper');
+            if (!iframeWrap) return false;
             const rect = iframeWrap.getBoundingClientRect();
+            // rect.bottom === 0 quando o modal está hidden — ignora esses casos
+            if (rect.bottom === 0) return false;
             return clientY > rect.bottom;
         }
 
+        function isOnNavButton(target) {
+            return btnPrev.contains(target) || btnNext.contains(target);
+        }
+
         modal.addEventListener('touchstart', e => {
-            const touch = e.touches[0];
-            const onBtn = btnPrev.contains(e.target) || btnNext.contains(e.target);
-            if (!onBtn && isTouchBelowVideo(touch.clientY)) {
-                showNavButtons();
-            }
+            if (isOnNavButton(e.target)) return;
+            if (isBelowVideo(e.touches[0].clientY)) showNavButtons();
         }, { passive: true });
 
-        // Fallback para dispositivos que disparam click em vez de touchstart
+        // Fallback click (alguns browsers mobile disparam só click)
         modal.addEventListener('click', e => {
-            const onBtn = btnPrev.contains(e.target) || btnNext.contains(e.target);
-            if (!onBtn && isTouchBelowVideo(e.clientY)) {
-                showNavButtons();
-            }
+            if (isOnNavButton(e.target)) return;
+            if (isBelowVideo(e.clientY)) showNavButtons();
         });
 
-        // Botões navegam e somem imediatamente ao clicar
-        btnPrev.addEventListener('click', () => {
-            clearTimeout(hideTimer);
-            navBar.classList.add('hidden');
+        btnPrev.addEventListener('click', e => {
+            e.stopPropagation();
+            hideNavButtons();
             if (modal._swipePrev) openPlayerModal(modal._swipePrev);
         });
 
-        btnNext.addEventListener('click', () => {
-            clearTimeout(hideTimer);
-            navBar.classList.add('hidden');
+        btnNext.addEventListener('click', e => {
+            e.stopPropagation();
+            hideNavButtons();
             if (modal._swipeNext) openPlayerModal(modal._swipeNext);
         });
     });

@@ -1007,23 +1007,20 @@ body {
 .btn-close-player {
     flex-shrink: 0;
     margin-left: auto;
-    padding: 5px 14px;
+    padding: 6px 16px;
     border-radius: 5px;
     background-color: var(--netflix-red);
     border: none;
     color: #fff;
     font-size: 0.8rem;
     font-weight: 700;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
     cursor: pointer;
-    transition: background-color var(--transition-fast);
     white-space: nowrap;
+    transition: background-color var(--transition-fast);
 }
-
-.btn-close-player:hover {
-    background-color: #f40612;
-}
+.btn-close-player:hover { background-color: #f40612; }
 
 .video-iframe-wrapper {
     position: relative;
@@ -1569,15 +1566,20 @@ body.firebase-banner-active .hero-banner {
 }
 
 .btn-close-auth {
-    background: none;
+    padding: 6px 16px;
+    border-radius: 5px;
+    background-color: var(--netflix-red);
     border: none;
-    color: var(--text-muted);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
     cursor: pointer;
+    white-space: nowrap;
+    transition: background-color var(--transition-fast);
 }
-
-.btn-close-auth:hover {
-    color: var(--text-color);
-}
+.btn-close-auth:hover { background-color: #f40612; }
 
 .auth-subtitle {
     font-size: 0.85rem;
@@ -1685,18 +1687,22 @@ body.firebase-banner-active .hero-banner {
 }
 
 .btn-close-admin {
-    background: none;
+    padding: 6px 16px;
+    border-radius: 5px;
+    background-color: var(--netflix-red);
     border: none;
-    color: var(--text-muted);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
     cursor: pointer;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
+    white-space: nowrap;
+    transition: background-color var(--transition-fast);
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    transition: all var(--transition-fast);
 }
+.btn-close-admin:hover { background-color: #f40612; }
 
 .btn-edit-categories {
     display: flex;
@@ -2583,26 +2589,23 @@ body.firebase-banner-active .hero-banner {
 }
 
 .btn-blocked-close {
-    display: flex;
+    padding: 6px 16px;
+    border-radius: 5px;
+    background-color: var(--netflix-red);
+    border: none;
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color var(--transition-fast);
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding: 11px 20px;
-    background: transparent;
-    color: var(--text-muted, #aaa);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 8px;
-    font-size: 0.88rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.18s, color 0.18s, border-color 0.18s;
 }
-
-.btn-blocked-close:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: #fff;
-    border-color: rgba(255, 255, 255, 0.3);
-}
+.btn-blocked-close:hover { background-color: #f40612; }
 
 /* ===== Tela de Carregamento Inicial ===== */
 .loading-library {
@@ -2652,22 +2655,30 @@ body.firebase-banner-active .hero-banner {
     40%            { transform: scale(1);   opacity: 1;   }
 }
 
-/* Botões de navegação mobile: círculos com seta, logo abaixo do vídeo */
+/* Botões de navegação mobile: círculos com seta, logo abaixo do vídeo.
+   Visibilidade controlada apenas por opacity/pointer-events via JS (não por display),
+   para evitar conflito entre display:none base e display:flex da media query. */
 .mobile-nav-buttons {
-    display: none; /* só no mobile via media query abaixo */
-    justify-content: space-between;
-    align-items: center;
-    padding: 0 20px;
-    /* Flutua logo abaixo do vídeo, sobrepondo levemente o início do player-info */
     position: relative;
-    height: 0;          /* não ocupa espaço de layout */
+    height: 0;           /* não empurra o conteúdo abaixo */
     overflow: visible;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 0 20px;
     z-index: 50;
+    opacity: 0;
+    pointer-events: none;
     transition: opacity 0.2s;
+    /* Oculto por padrão em telas grandes — JS só mostra em mobile */
+    visibility: hidden;
 }
 
-.mobile-nav-buttons.hidden { opacity: 0; pointer-events: none; }
-.mobile-nav-buttons:not(.hidden) { opacity: 1; pointer-events: auto; }
+.mobile-nav-buttons.visible {
+    opacity: 1;
+    pointer-events: auto;
+    visibility: visible;
+}
 
 .btn-mobile-nav {
     width: 52px;
@@ -2680,15 +2691,42 @@ body.firebase-banner-active .hero-banner {
     border-radius: 50%;
     color: #fff;
     cursor: pointer;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-    transform: translateY(-50%); /* sobe para ficar na borda inferior do vídeo */
+    box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+    transform: translateY(-50%);
     transition: background 0.15s, transform 0.15s;
 }
 
 .btn-mobile-nav:active { background: #c0070f; transform: translateY(-50%) scale(0.92); }
-.btn-mobile-nav.hidden { display: none !important; }
+.btn-mobile-nav.hidden { visibility: hidden !important; pointer-events: none !important; }
 
 @media (max-width: 768px) {
-    .mobile-nav-buttons { display: flex; }
     .btn-player-nav { display: none !important; }
+}
+
+/* ===== Botão Fechar unificado (retangular vermelho, texto branco) ===== */
+.btn-close-unified {
+    padding: 6px 16px;
+    border-radius: 5px;
+    background-color: var(--netflix-red);
+    border: none;
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color var(--transition-fast);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.btn-close-unified:hover { background-color: #f40612; }
+
+/* Variante posicionada absolutamente (modais sem área de info inline) */
+.btn-close-unified.absolute {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 110;
 }

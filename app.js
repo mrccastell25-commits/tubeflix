@@ -651,7 +651,7 @@ function setupEventListeners() {
 
     closePassModal.addEventListener('click', () => modalPassword.classList.add('hidden'));
     closeAdminModal.addEventListener('click', () => modalAdmin.classList.add('hidden'));
-    closePlayerBtn.addEventListener('click', closePlayerModal);
+    // close-player-btn é gerenciado pelo initPlayerMenu (lógica de voltar para origem correta)
 
     // Navegação entre lista e formulário no painel admin (relevante principalmente no celular)
     if (btnAddNewVideo) {

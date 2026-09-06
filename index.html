@@ -208,19 +208,13 @@
         </button>
 
         <div class="player-modal-container">
-            <button class="btn-close-player" id="close-player-btn">
-                <i data-lucide="x"></i>
-            </button>
-            
-            <!-- Botões de navegação mobile: aparecem ao tocar fora do vídeo -->
+            <!-- Botões de navegação mobile: círculos com seta, aparecem ao tocar fora do vídeo -->
             <div class="mobile-nav-buttons hidden" id="mobile-nav-buttons">
-                <button class="btn-mobile-nav btn-mobile-prev hidden" id="btn-mobile-prev">
-                    <svg viewBox="0 0 24 24" fill="white" width="22" height="22"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-                    <span>Anterior</span>
+                <button class="btn-mobile-nav btn-mobile-prev hidden" id="btn-mobile-prev" title="Anterior">
+                    <svg viewBox="0 0 24 24" fill="white" width="24" height="24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
                 </button>
-                <button class="btn-mobile-nav btn-mobile-next hidden" id="btn-mobile-next">
-                    <span>Próximo</span>
-                    <svg viewBox="0 0 24 24" fill="white" width="22" height="22"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                <button class="btn-mobile-nav btn-mobile-next hidden" id="btn-mobile-next" title="Próximo">
+                    <svg viewBox="0 0 24 24" fill="white" width="24" height="24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
                 </button>
             </div>
 
@@ -241,6 +235,9 @@
                         <span class="age-rating rating-l" id="modal-video-rating">L</span>
                         <span class="duration" id="modal-video-duration">45m</span>
                         <span class="quality-badge">HD</span>
+                        <button class="btn-close-player" id="close-player-btn" title="Fechar">
+                            <i data-lucide="x"></i>
+                        </button>
                     </div>
                     <h2 class="player-video-title" id="modal-video-title">Título Completo do Vídeo</h2>
                     <a href="#" target="_blank" rel="noopener" id="modal-video-external-link" class="modal-video-external-link hidden">

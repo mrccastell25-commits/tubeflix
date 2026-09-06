@@ -49,6 +49,19 @@ let firebaseHasResponded = false;
 const LOADING_MIN_DURATION_MS = 4000; // tempo mínimo de exibição da tela de carregamento
 let loadingStartTime = Date.now();
 
+// Safety net: se o Firebase demorar mais de 10s (conexão ruim no mobile, por exemplo),
+// remove o preloadStyle e mostra o estado de erro — evita tela de loading infinita
+setTimeout(() => {
+    const preloadStyle = document.getElementById('tubeflix-preload-style');
+    if (preloadStyle) {
+        preloadStyle.remove();
+        if (!firebaseHasResponded) {
+            firebaseHasResponded = true;
+            filterAndRenderRows();
+        }
+    }
+}, 10000);
+
 // 2. Variáveis de Estado da Aplicação
 const ADMIN_PASSWORD = "123"; // Senha padrão de fábrica (usada apenas se nenhuma senha customizada foi salva)
 
@@ -1622,6 +1635,12 @@ function filterAndRenderRows() {
         );
     }
 
+    // Remove o CSS de pré-carregamento assim que filterAndRenderRows for chamada pela primeira vez.
+    // Isso garante que o !important do preload não bloqueie a renderização em nenhum dispositivo,
+    // independente do timing do Firebase ou da velocidade de carregamento.
+    const preloadStyle = document.getElementById('tubeflix-preload-style');
+    if (preloadStyle) preloadStyle.remove();
+
     const loadingState = document.getElementById('loading-state');
 
     // Enquanto o Firebase ainda não respondeu, mantém a tela de carregamento visível
@@ -1633,9 +1652,7 @@ function filterAndRenderRows() {
         return;
     }
 
-    // Firebase já respondeu: remove o CSS de pré-carregamento (inline no <head>) e esconde o loading
-    const preloadStyle = document.getElementById('tubeflix-preload-style');
-    if (preloadStyle) preloadStyle.remove();
+    // Firebase já respondeu: esconde o loading
     if (loadingState) loadingState.classList.add('hidden');
 
     // Exibir/Ocultar tela de biblioteca vazia

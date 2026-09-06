@@ -1005,70 +1005,81 @@ body {
 }
 
 .btn-player-menu {
-    flex-shrink: 0;
     margin-left: auto;
-    width: 34px;
-    height: 34px;
+    flex-shrink: 0;
+    padding: 6px 14px;
     border-radius: 6px;
     background-color: #2b6cb0;
+    border: none;
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+    white-space: nowrap;
+}
+.btn-player-menu:hover { background-color: #245a99; }
+
+/* Overlay transparente do menu — cobre toda a área do modal exceto a barra de info */
+.player-menu-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 120;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    animation: menuOverlayIn 0.18s ease;
+}
+
+@keyframes menuOverlayIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.player-menu-overlay.hidden { display: none; }
+
+/* Botões circulares de navegação */
+.btn-menu-nav {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--netflix-red);
     border: none;
     color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: background-color var(--transition-fast);
-    position: relative;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.5);
+    transition: transform 0.15s, background 0.15s;
+    flex-shrink: 0;
 }
-.btn-player-menu:hover { background-color: #245a99; }
-.btn-player-menu i { width: 18px; height: 18px; }
+.btn-menu-nav:hover  { transform: scale(1.08); }
+.btn-menu-nav:active { transform: scale(0.94); background: #c0070f; }
+.btn-menu-nav.hidden { visibility: hidden; pointer-events: none; }
 
-/* Painel dropdown do menu do player */
-.player-menu-panel {
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
-    background: #1a1a1a;
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
-    overflow: hidden;
-    z-index: 200;
-    min-width: 160px;
-    animation: menuFadeIn 0.15s ease;
-}
-
-@keyframes menuFadeIn {
-    from { opacity: 0; transform: translateY(-6px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
-
-.player-menu-panel.hidden { display: none; }
-
-.player-menu-item {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
-    background: none;
+/* Botão Fechar retangular vermelho entre os dois círculos */
+.btn-menu-close {
+    padding: 10px 24px;
+    border-radius: 6px;
+    background: var(--netflix-red);
     border: none;
     color: #fff;
-    font-size: 0.9rem;
-    font-weight: 500;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
     cursor: pointer;
-    transition: background 0.15s;
-    text-align: left;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.5);
+    transition: background 0.15s, transform 0.15s;
+    white-space: nowrap;
 }
-.player-menu-item:hover { background: rgba(255,255,255,0.08); }
-.player-menu-item i { width: 16px; height: 16px; flex-shrink: 0; }
-.player-menu-item.disabled { opacity: 0.35; pointer-events: none; }
-
-.player-menu-close {
-    border-top: 1px solid rgba(255,255,255,0.08);
-    color: var(--netflix-red);
-}
-.player-menu-close:hover { background: rgba(229,9,20,0.1); }
+.btn-menu-close:hover  { background: #c0070f; }
+.btn-menu-close:active { transform: scale(0.96); }
 
 .video-iframe-wrapper {
     position: relative;
@@ -1166,7 +1177,6 @@ body {
     gap: 12px;
     font-size: 0.85rem;
     flex-wrap: nowrap;
-    position: relative; /* ancora o dropdown do menu */
 }
 
 .quality-badge {

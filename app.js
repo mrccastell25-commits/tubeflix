@@ -2291,38 +2291,35 @@ function updatePlayerNavButtons(video) {
 // Um swipe é reconhecido quando o deslize horizontal supera 60px e é maior que o vertical (não é scroll)
 ;(function initPlayerMenu() {
     document.addEventListener('DOMContentLoaded', () => {
-        const modal      = document.getElementById('player-modal');
-        const menuBtn    = document.getElementById('btn-player-menu');
-        const menuPanel  = document.getElementById('player-menu-panel');
-        const menuPrev   = document.getElementById('player-menu-prev');
-        const menuNext   = document.getElementById('player-menu-next');
-        const menuClose  = document.getElementById('close-player-btn');
-        if (!modal || !menuBtn || !menuPanel) return;
+        const modal    = document.getElementById('player-modal');
+        const menuBtn  = document.getElementById('btn-player-menu');
+        const overlay  = document.getElementById('player-menu-overlay');
+        const menuPrev = document.getElementById('player-menu-prev');
+        const menuNext = document.getElementById('player-menu-next');
+        const menuClose = document.getElementById('close-player-btn');
+        if (!modal || !menuBtn || !overlay) return;
 
         function openMenu() {
-            // Atualiza estado dos itens conforme episódios disponíveis
-            if (menuPrev) menuPrev.classList.toggle('disabled', !modal._swipePrev);
-            if (menuNext) menuNext.classList.toggle('disabled', !modal._swipeNext);
-            menuPanel.classList.remove('hidden');
+            // Mostra/oculta os botões de navegação conforme episódios disponíveis
+            if (menuPrev) menuPrev.classList.toggle('hidden', !modal._swipePrev);
+            if (menuNext) menuNext.classList.toggle('hidden', !modal._swipeNext);
+            overlay.classList.remove('hidden');
         }
 
         function closeMenu() {
-            menuPanel.classList.add('hidden');
+            overlay.classList.add('hidden');
         }
 
-        // Botão azul: toggle do menu
+        // Botão azul Menu: abre o overlay
         menuBtn.addEventListener('click', e => {
             e.stopPropagation();
-            menuPanel.classList.contains('hidden') ? openMenu() : closeMenu();
+            overlay.classList.contains('hidden') ? openMenu() : closeMenu();
         });
 
-        // Fechar ao clicar fora do menu
-        document.addEventListener('click', e => {
-            if (!menuPanel.contains(e.target) && e.target !== menuBtn) closeMenu();
+        // Clicar no fundo do overlay (fora dos botões) fecha o menu
+        overlay.addEventListener('click', e => {
+            if (e.target === overlay) closeMenu();
         });
-        document.addEventListener('touchstart', e => {
-            if (!menuPanel.contains(e.target) && e.target !== menuBtn) closeMenu();
-        }, { passive: true });
 
         // Anterior
         if (menuPrev) {

@@ -2315,20 +2315,26 @@ function updatePlayerNavButtons(video) {
             }, 3000);
         }
 
-        // Toque fora da área do vídeo → mostra os botões
+        // Toque fora da área do vídeo → mostra os botões.
+        // Usa a posição Y do toque para detectar se está abaixo do iframe,
+        // pois o iframe do YouTube absorve eventos e contains() não é confiável dentro dele.
+        function isTouchBelowVideo(clientY) {
+            const rect = iframeWrap.getBoundingClientRect();
+            return clientY > rect.bottom;
+        }
+
         modal.addEventListener('touchstart', e => {
-            if (!iframeWrap.contains(e.target) &&
-                !btnPrev.contains(e.target) &&
-                !btnNext.contains(e.target)) {
+            const touch = e.touches[0];
+            const onBtn = btnPrev.contains(e.target) || btnNext.contains(e.target);
+            if (!onBtn && isTouchBelowVideo(touch.clientY)) {
                 showNavButtons();
             }
         }, { passive: true });
 
-        // Clique fora do vídeo também (para quem usa mouse em tela touch)
+        // Fallback para dispositivos que disparam click em vez de touchstart
         modal.addEventListener('click', e => {
-            if (!iframeWrap.contains(e.target) &&
-                !btnPrev.contains(e.target) &&
-                !btnNext.contains(e.target)) {
+            const onBtn = btnPrev.contains(e.target) || btnNext.contains(e.target);
+            if (!onBtn && isTouchBelowVideo(e.clientY)) {
                 showNavButtons();
             }
         });

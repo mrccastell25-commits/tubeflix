@@ -1005,24 +1005,24 @@ body {
 }
 
 .btn-close-player {
-    width: 32px;
-    height: 32px;
     flex-shrink: 0;
-    margin-left: auto;  /* empurra para a direita dentro do player-meta flex */
-    border-radius: 50%;
-    background-color: rgba(255,255,255,0.1);
-    border: 1px solid var(--border-color);
-    color: var(--text-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    margin-left: auto;
+    padding: 5px 14px;
+    border-radius: 5px;
+    background-color: var(--netflix-red);
+    border: none;
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
     cursor: pointer;
-    transition: all var(--transition-fast);
+    transition: background-color var(--transition-fast);
+    white-space: nowrap;
 }
 
 .btn-close-player:hover {
-    background-color: #ffffff;
-    color: #000000;
+    background-color: #f40612;
 }
 
 .video-iframe-wrapper {

@@ -4,6 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TubeFlix - Sua Plataforma de Vídeos do YouTube estilo Netflix</title>
+    <style id="tubeflix-preload-style">
+        /* Garante loading visível e conteúdo oculto ANTES do JS inicializar.
+           O app.js remove esse <style> inteiro assim que o Firebase responde. */
+        #hero-banner,
+        .video-row-section,
+        #no-videos-state { display: none !important; }
+        #loading-state { display: flex !important; }
+    </style>
     <!-- Google Fonts Inter & Outfit -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

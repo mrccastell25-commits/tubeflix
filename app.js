@@ -1633,7 +1633,9 @@ function filterAndRenderRows() {
         return;
     }
 
-    // Firebase já respondeu: esconde a tela de carregamento definitivamente
+    // Firebase já respondeu: remove o CSS de pré-carregamento (inline no <head>) e esconde o loading
+    const preloadStyle = document.getElementById('tubeflix-preload-style');
+    if (preloadStyle) preloadStyle.remove();
     if (loadingState) loadingState.classList.add('hidden');
 
     // Exibir/Ocultar tela de biblioteca vazia

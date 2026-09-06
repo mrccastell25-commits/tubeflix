@@ -2339,12 +2339,21 @@ function updatePlayerNavButtons(video) {
             });
         }
 
-        // Fechar player
+        // Voltar: fecha o player e reabre a tela de capítulos se veio de uma série
         if (menuClose) {
             menuClose.addEventListener('click', e => {
                 e.stopPropagation();
                 closeMenu();
                 closePlayerModal();
+                // Se o episódio veio de uma série, reabre a lista de capítulos
+                if (window._lastSeriesEpisodes && window._lastSeriesRepresentative) {
+                    setTimeout(() => {
+                        openSeriesEpisodesModal(
+                            window._lastSeriesEpisodes,
+                            window._lastSeriesRepresentative
+                        );
+                    }, 120); // pequeno delay para o player fechar antes de abrir a lista
+                }
             });
         }
     });
@@ -2432,6 +2441,9 @@ function closePlayerModal() {
 // Abre a lista de capítulos de uma série, para o usuário escolher qual episódio assistir
 // (evita poluir a fileira de séries com uma capa repetida para cada capítulo)
 function openSeriesEpisodesModal(episodes, representative) {
+    // Guarda a série atual para o botão "Voltar" do player poder retornar
+    window._lastSeriesEpisodes = episodes;
+    window._lastSeriesRepresentative = representative;
     modalSeriesEpisodes.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
 

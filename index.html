@@ -216,19 +216,17 @@
                 <div id="generic-player-container" class="generic-player-container hidden"></div>
             </div>
 
-            <!-- Overlay do menu: transparente, aparece sobre toda a área do modal ao clicar "Menu" -->
-            <div class="player-menu-overlay hidden" id="player-menu-overlay">
-                <button class="btn-menu-nav btn-menu-prev hidden" id="player-menu-prev">
-                    <svg viewBox="0 0 24 24" fill="white" width="26" height="26"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-                </button>
-                <button class="btn-menu-close" id="close-player-btn">Fechar</button>
-                <button class="btn-menu-nav btn-menu-next hidden" id="player-menu-next">
-                    <svg viewBox="0 0 24 24" fill="white" width="26" height="26"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
-                </button>
-            </div>
-
-
-            <div class="player-info-container">
+            <div class="player-info-container" style="position:relative;">
+                <!-- Overlay do menu: cobre só a área de texto, abaixo do vídeo -->
+                <div class="player-menu-overlay hidden" id="player-menu-overlay">
+                    <button class="btn-menu-nav btn-menu-prev hidden" id="player-menu-prev">
+                        <svg viewBox="0 0 24 24" fill="white" width="26" height="26"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+                    </button>
+                    <button class="btn-menu-close" id="close-player-btn">Voltar</button>
+                    <button class="btn-menu-nav btn-menu-next hidden" id="player-menu-next">
+                        <svg viewBox="0 0 24 24" fill="white" width="26" height="26"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                    </button>
+                </div>
                 <div class="player-info-left">
                     <div class="player-meta">
                         <span class="match-score" id="modal-video-match">95% Match</span>

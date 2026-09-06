@@ -1022,17 +1022,18 @@ body {
 }
 .btn-player-menu:hover { background-color: #245a99; }
 
-/* Overlay transparente do menu — cobre toda a área do modal exceto a barra de info */
+/* Overlay do menu — cobre apenas o player-info-container (área de texto abaixo do vídeo) */
 .player-menu-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.55);
+    background: rgba(0, 0, 0, 0.6);
     z-index: 120;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 28px;
     animation: menuOverlayIn 0.18s ease;
+    border-radius: 0 0 8px 8px; /* acompanha o arredondamento do card */
 }
 
 @keyframes menuOverlayIn {
@@ -1062,12 +1063,12 @@ body {
 .btn-menu-nav:active { transform: scale(0.94); background: #c0070f; }
 .btn-menu-nav.hidden { visibility: hidden; pointer-events: none; }
 
-/* Botão Fechar retangular vermelho entre os dois círculos */
+/* Botão Voltar preto entre os dois círculos */
 .btn-menu-close {
     padding: 10px 24px;
     border-radius: 6px;
-    background: var(--netflix-red);
-    border: none;
+    background: #111;
+    border: 1px solid rgba(255,255,255,0.15);
     color: #fff;
     font-size: 0.85rem;
     font-weight: 700;
@@ -1078,7 +1079,7 @@ body {
     transition: background 0.15s, transform 0.15s;
     white-space: nowrap;
 }
-.btn-menu-close:hover  { background: #c0070f; }
+.btn-menu-close:hover  { background: #222; }
 .btn-menu-close:active { transform: scale(0.96); }
 
 .video-iframe-wrapper {

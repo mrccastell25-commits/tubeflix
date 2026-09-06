@@ -2268,82 +2268,64 @@ function updatePlayerNavButtons(video) {
 
 // Swipe horizontal no player modal para navegar entre episódios (mobile)
 // Um swipe é reconhecido quando o deslize horizontal supera 60px e é maior que o vertical (não é scroll)
-;(function initPlayerSwipe() {
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let isDragging = false;
-    let cancelled  = false;
-    let arrowTimer = null;
+;(function initMobilePlayerNav() {
+    let hideTimer = null;
 
     document.addEventListener('DOMContentLoaded', () => {
-        const modal     = document.getElementById('player-modal');
-        if (!modal) return;
-        const arrowPrev = document.getElementById('swipe-arrow-prev');
-        const arrowNext = document.getElementById('swipe-arrow-next');
+        const modal      = document.getElementById('player-modal');
+        const navBar     = document.getElementById('mobile-nav-buttons');
+        const btnPrev    = document.getElementById('btn-mobile-prev');
+        const btnNext    = document.getElementById('btn-mobile-next');
+        const iframeWrap = modal ? modal.querySelector('.video-iframe-wrapper') : null;
+        if (!modal || !navBar || !btnPrev || !btnNext || !iframeWrap) return;
 
-        // Mostra a seta da direção indicada e agenda o desaparecimento
-        function showArrow(direction) {
-            clearTimeout(arrowTimer);
-            arrowPrev.classList.remove('visible');
-            arrowNext.classList.remove('visible');
-            if (direction === 'left'  && arrowNext) arrowNext.classList.add('visible');
-            if (direction === 'right' && arrowPrev) arrowPrev.classList.add('visible');
+        // Mostra os botões por 3s e agenda o sumiço automático
+        function showNavButtons() {
+            // Só mostra se há pelo menos um episódio adjacente
+            const hasPrev = !!modal._swipePrev;
+            const hasNext = !!modal._swipeNext;
+            if (!hasPrev && !hasNext) return;
+
+            btnPrev.classList.toggle('hidden', !hasPrev);
+            btnNext.classList.toggle('hidden', !hasNext);
+            navBar.classList.remove('hidden');
+
+            clearTimeout(hideTimer);
+            hideTimer = setTimeout(() => {
+                navBar.classList.add('hidden');
+            }, 3000);
         }
 
-        function hideArrows() {
-            clearTimeout(arrowTimer);
-            if (arrowPrev) arrowPrev.classList.remove('visible');
-            if (arrowNext) arrowNext.classList.remove('visible');
-        }
-
-        // Troca o episódio: mostra seta, espera ela sumir, depois troca o conteúdo
-        function swipeTo(targetVideo, direction) {
-            showArrow(direction);
-            arrowTimer = setTimeout(() => {
-                hideArrows();
-                openPlayerModal(targetVideo);
-            }, 400);
-        }
-
+        // Toque fora da área do vídeo → mostra os botões
         modal.addEventListener('touchstart', e => {
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-            isDragging = false;
-            cancelled  = false;
-        }, { passive: true });
-
-        modal.addEventListener('touchmove', e => {
-            const dx = e.touches[0].clientX - touchStartX;
-            const dy = e.touches[0].clientY - touchStartY;
-
-            if (!isDragging && !cancelled) {
-                if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-                if (Math.abs(dy) > Math.abs(dx)) { cancelled = true; return; }
-                isDragging = true;
-            }
-
-            if (cancelled || !isDragging) return;
-
-            // Mostra a seta conforme a direção do arrasto (só se existir episódio nessa direção)
-            if (dx < -30 && modal._swipeNext) showArrow('left');
-            else if (dx > 30 && modal._swipePrev) showArrow('right');
-            else hideArrows();
-        }, { passive: true });
-
-        modal.addEventListener('touchend', e => {
-            if (cancelled || !isDragging) return;
-            isDragging = false;
-
-            const dx = e.changedTouches[0].clientX - touchStartX;
-
-            if (dx < -60 && modal._swipeNext) {
-                swipeTo(modal._swipeNext, 'left');
-            } else if (dx > 60 && modal._swipePrev) {
-                swipeTo(modal._swipePrev, 'right');
-            } else {
-                hideArrows();
+            if (!iframeWrap.contains(e.target) &&
+                !btnPrev.contains(e.target) &&
+                !btnNext.contains(e.target)) {
+                showNavButtons();
             }
         }, { passive: true });
+
+        // Clique fora do vídeo também (para quem usa mouse em tela touch)
+        modal.addEventListener('click', e => {
+            if (!iframeWrap.contains(e.target) &&
+                !btnPrev.contains(e.target) &&
+                !btnNext.contains(e.target)) {
+                showNavButtons();
+            }
+        });
+
+        // Botões navegam e somem imediatamente ao clicar
+        btnPrev.addEventListener('click', () => {
+            clearTimeout(hideTimer);
+            navBar.classList.add('hidden');
+            if (modal._swipePrev) openPlayerModal(modal._swipePrev);
+        });
+
+        btnNext.addEventListener('click', () => {
+            clearTimeout(hideTimer);
+            navBar.classList.add('hidden');
+            if (modal._swipeNext) openPlayerModal(modal._swipeNext);
+        });
     });
 })();
 

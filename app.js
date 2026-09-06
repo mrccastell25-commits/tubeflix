@@ -2291,22 +2291,19 @@ function updatePlayerNavButtons(video) {
     let hideTimer = null;
 
     document.addEventListener('DOMContentLoaded', () => {
-        const modal   = document.getElementById('player-modal');
-        const navBar  = document.getElementById('mobile-nav-buttons');
-        const btnPrev = document.getElementById('btn-mobile-prev');
-        const btnNext = document.getElementById('btn-mobile-next');
+        const modal      = document.getElementById('player-modal');
+        const navBar     = document.getElementById('mobile-nav-buttons');
+        const btnPrev    = document.getElementById('btn-mobile-prev');
+        const btnNext    = document.getElementById('btn-mobile-next');
         if (!modal || !navBar || !btnPrev || !btnNext) return;
 
         function showNavButtons() {
             const hasPrev = !!modal._swipePrev;
             const hasNext = !!modal._swipeNext;
             if (!hasPrev && !hasNext) return;
-
-            // Usa visibility em vez de hidden/display para não conflitar com CSS
             btnPrev.classList.toggle('hidden', !hasPrev);
             btnNext.classList.toggle('hidden', !hasNext);
             navBar.classList.add('visible');
-
             clearTimeout(hideTimer);
             hideTimer = setTimeout(() => navBar.classList.remove('visible'), 3000);
         }
@@ -2316,31 +2313,34 @@ function updatePlayerNavButtons(video) {
             navBar.classList.remove('visible');
         }
 
-        // Detecta se o toque foi ABAIXO do vídeo, calculado no momento do evento
-        // (não na inicialização, quando o modal ainda está hidden e o rect é zero)
-        function isBelowVideo(clientY) {
-            const iframeWrap = modal.querySelector('.video-iframe-wrapper');
-            if (!iframeWrap) return false;
-            const rect = iframeWrap.getBoundingClientRect();
-            // rect.bottom === 0 quando o modal está hidden — ignora esses casos
-            if (rect.bottom === 0) return false;
-            return clientY > rect.bottom;
+        // Listener direto no player-info-container (área abaixo do vídeo).
+        // Não depende de cálculo de posição — qualquer toque nessa área dispara os botões.
+        // É adicionado depois que o modal abre (via openPlayerModal) para garantir que o
+        // elemento já está no DOM e visível.
+        function attachInfoListener() {
+            const infoContainer = modal.querySelector('.player-info-container');
+            if (!infoContainer || infoContainer._navListenerAttached) return;
+            infoContainer._navListenerAttached = true;
+
+            infoContainer.addEventListener('touchstart', e => {
+                if (!btnPrev.contains(e.target) && !btnNext.contains(e.target)) {
+                    showNavButtons();
+                }
+            }, { passive: true });
+
+            // Fallback click para telas touch que só disparam click
+            infoContainer.addEventListener('click', e => {
+                if (!btnPrev.contains(e.target) && !btnNext.contains(e.target)) {
+                    showNavButtons();
+                }
+            });
         }
 
-        function isOnNavButton(target) {
-            return btnPrev.contains(target) || btnNext.contains(target);
-        }
-
-        modal.addEventListener('touchstart', e => {
-            if (isOnNavButton(e.target)) return;
-            if (isBelowVideo(e.touches[0].clientY)) showNavButtons();
-        }, { passive: true });
-
-        // Fallback click (alguns browsers mobile disparam só click)
-        modal.addEventListener('click', e => {
-            if (isOnNavButton(e.target)) return;
-            if (isBelowVideo(e.clientY)) showNavButtons();
+        // Observa quando o modal sai do estado hidden para anexar o listener
+        const observer = new MutationObserver(() => {
+            if (!modal.classList.contains('hidden')) attachInfoListener();
         });
+        observer.observe(modal, { attributes: true, attributeFilter: ['class'] });
 
         btnPrev.addEventListener('click', e => {
             e.stopPropagation();

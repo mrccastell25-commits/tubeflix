@@ -182,8 +182,16 @@ function getCustomCategories() {
 // (player ocupa toda a área sem mostrar informações abaixo)
 function isCategoryFullEmbed(video) {
     if (!video) return false;
-    const cat = getCustomCategories().find(c => c.key === video.category);
-    return !!(cat && cat.fullEmbed);
+    const customCats = getCustomCategories();
+    // Verifica a categoria real do vídeo
+    const catByCategory = customCats.find(c => c.key === video.category);
+    if (catByCategory && catByCategory.fullEmbed) return true;
+    // Verifica também displayCategory (caso o vídeo tenha sido redirecionado)
+    if (video.displayCategory) {
+        const catByDisplay = customCats.find(c => c.key === video.displayCategory);
+        if (catByDisplay && catByDisplay.fullEmbed) return true;
+    }
+    return false;
 }
 
 // Salva a lista de categorias personalizadas no Firebase. Se o Firebase estiver indisponível, a ação
@@ -304,6 +312,8 @@ function renderCustomCategoriesAdminList() {
         </div>
     `).join('');
 
+    lucide.createIcons();
+
     // Listener para toggle fullEmbed em categorias existentes
     container.querySelectorAll('.chk-fullembed').forEach(chk => {
         chk.addEventListener('change', () => {
@@ -311,11 +321,10 @@ function renderCustomCategoriesAdminList() {
             const updated = getCustomCategories().map(c =>
                 c.key === key ? { ...c, fullEmbed: chk.checked } : c
             );
-            saveCustomCategories(updated);
+            const saved = saveCustomCategories(updated);
+            if (saved) showToast(chk.checked ? 'Modo fullscreen ativado.' : 'Modo fullscreen desativado.');
         });
     });
-
-    lucide.createIcons();
 
     container.querySelectorAll('.btn-delete-custom-category').forEach(btn => {
         btn.addEventListener('click', () => deleteCustomCategory(btn.getAttribute('data-key')));

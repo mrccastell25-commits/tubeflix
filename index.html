@@ -90,6 +90,10 @@
                     <i data-lucide="dices"></i>
                     <span>Escolha por Mim</span>
                 </button>
+                <button class="btn-info-hero btn-radioclip-hero" id="btn-radioclip-hero">
+                    <i data-lucide="radio"></i>
+                    <span>RadioClip</span>
+                </button>
             </div>
         </div>
         <div class="hero-gradient-bottom"></div>
@@ -292,6 +296,35 @@
         </div>
     </div>
 
+    <!-- Modal RadioClip: player + fila de próximos vídeos estilo Spotify -->
+    <div id="modal-radioclip" class="modal-overlay hidden">
+        <div class="radioclip-card">
+            <div class="radioclip-header">
+                <div class="radioclip-header-left">
+                    <i data-lucide="radio" style="width:18px;height:18px;color:var(--netflix-red)"></i>
+                    <span class="radioclip-title-label">RadioClip</span>
+                    <span class="radioclip-now-playing" id="radioclip-now-title">—</span>
+                </div>
+                <button class="btn-close-player" id="close-radioclip-btn" style="position:static;margin-left:auto;">Fechar</button>
+            </div>
+
+            <div class="radioclip-body">
+                <!-- Player -->
+                <div class="radioclip-player-wrap">
+                    <div class="radioclip-iframe-wrap" id="radioclip-iframe-wrap">
+                        <!-- iframe inserido dinamicamente -->
+                    </div>
+                </div>
+
+                <!-- Fila estilo Spotify -->
+                <div class="radioclip-queue-panel">
+                    <p class="radioclip-queue-label">A seguir</p>
+                    <ul class="radioclip-queue-list" id="radioclip-queue-list"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal "Escolha por Mim": pião 3D girando com as capas, para sortear um vídeo -->
     <div id="modal-random-pick" class="modal-overlay hidden">
         <div class="random-pick-card">
@@ -430,6 +463,22 @@
                 <div class="category-labels-actions">
                     <button type="button" id="btn-reset-category-labels" class="btn-cancel-action">Restaurar Padrão</button>
                     <button type="button" id="btn-save-category-labels" class="btn-auth-submit" style="width:auto; padding: 10px 20px;">Salvar Nomes</button>
+                </div>
+
+                <!-- Configuração do RadioClip -->
+                <div class="radioclip-config-section">
+                    <p class="category-labels-hint" style="margin-bottom: 8px; margin-top: 18px;">
+                        <strong>RadioClip</strong> — categoria usada para gerar a playlist automática:
+                    </p>
+                    <div class="series-bulk-row" style="align-items: center; gap: 10px;">
+                        <select id="radioclip-category-select" class="form-control" style="flex:1;">
+                            <option value="">— Escolha uma categoria —</option>
+                        </select>
+                        <button type="button" id="btn-save-radioclip-category" class="btn-apply-series">
+                            <i data-lucide="save"></i>
+                            <span>Salvar</span>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="custom-category-section">

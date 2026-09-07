@@ -2991,6 +2991,14 @@ function openRadioClip() {
     radioClipState.queue = shuffleArray(pool).slice(0, 20);
     radioClipState.currentIndex = 0;
 
+    // Garante que o player anterior foi destruído antes de criar um novo
+    if (radioClipState.ytPlayer && typeof radioClipState.ytPlayer.destroy === 'function') {
+        try { radioClipState.ytPlayer.destroy(); } catch (_) {}
+        radioClipState.ytPlayer = null;
+    }
+    const wrap = document.getElementById('radioclip-iframe-wrap');
+    if (wrap) wrap.innerHTML = '';
+
     const modal = document.getElementById('modal-radioclip');
     if (modal) modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -3008,32 +3016,49 @@ function radioClipPlayCurrent() {
     const nowTitle = document.getElementById('radioclip-now-title');
     if (nowTitle) nowTitle.textContent = video.title;
 
-    // Insere o iframe no player do rádio
     const wrap = document.getElementById('radioclip-iframe-wrap');
     if (!wrap) return;
 
     if (video.sourceType === 'youtube' && video.videoId) {
-        wrap.innerHTML = `<iframe
-            src="https://www.youtube.com/embed/${video.videoId}?autoplay=1&rel=0&enablejsapi=1"
-            allow="autoplay; fullscreen"
-            allowfullscreen
-            id="radioclip-yt-frame">
-        </iframe>`;
+        // Usa a YT.Player API (mesmo mecanismo do player principal) para detectar fim do vídeo
+        if (radioClipState.ytPlayer && typeof radioClipState.ytPlayer.loadVideoById === 'function') {
+            // Player já existe — só troca o vídeo
+            radioClipState.ytPlayer.loadVideoById(video.videoId);
+        } else {
+            // Cria o placeholder e instancia o YT.Player
+            wrap.innerHTML = '<div id="radioclip-yt-placeholder"></div>';
 
-        // Escuta o fim do vídeo via postMessage da API do YouTube
-        window._radioclipMessageHandler && window.removeEventListener('message', window._radioclipMessageHandler);
-        window._radioclipMessageHandler = (e) => {
-            try {
-                const data = JSON.parse(e.data);
-                // Estado 0 = ended
-                if (data.event === 'onStateChange' && data.info === 0) {
-                    radioClipNext();
-                }
-            } catch (_) {}
-        };
-        window.addEventListener('message', window._radioclipMessageHandler);
+            const initPlayer = () => {
+                radioClipState.ytPlayer = new YT.Player('radioclip-yt-placeholder', {
+                    videoId: video.videoId,
+                    playerVars: { autoplay: 1, rel: 0 },
+                    events: {
+                        onStateChange: (e) => {
+                            if (e.data === YT.PlayerState.ENDED) radioClipNext();
+                        },
+                        onError: (e) => {
+                            // Vídeo bloqueado: pula para o próximo automaticamente
+                            console.warn('RadioClip: erro no vídeo, pulando.', e.data);
+                            radioClipNext();
+                        }
+                    }
+                });
+            };
+
+            if (typeof YT !== 'undefined' && YT.Player) {
+                initPlayer();
+            } else {
+                // API ainda não carregou — aguarda o callback global onYouTubeIframeAPIReady
+                const original = window.onYouTubeIframeAPIReady;
+                window.onYouTubeIframeAPIReady = () => {
+                    if (original) original();
+                    initPlayer();
+                };
+            }
+        }
     } else {
-        // Vídeo não-YouTube (iframe genérico)
+        // Vídeo não-YouTube: iframe genérico; avanço manual pelo usuário
+        radioClipState.ytPlayer = null;
         wrap.innerHTML = `<iframe src="${video.embedUrl || video.url}" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
     }
 }
@@ -3118,11 +3143,15 @@ function closeRadioClip() {
     if (modal) modal.classList.add('hidden');
     document.body.style.overflow = '';
 
-    // Para o vídeo limpando o iframe
+    // Para o vídeo e destrói o YT.Player do rádio
+    if (radioClipState.ytPlayer && typeof radioClipState.ytPlayer.destroy === 'function') {
+        try { radioClipState.ytPlayer.destroy(); } catch (_) {}
+    }
+    radioClipState.ytPlayer = null;
+
     const wrap = document.getElementById('radioclip-iframe-wrap');
     if (wrap) wrap.innerHTML = '';
 
-    window._radioclipMessageHandler && window.removeEventListener('message', window._radioclipMessageHandler);
     radioClipState.currentIndex = -1;
     radioClipState.queue = [];
 }

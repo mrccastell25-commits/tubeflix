@@ -2767,3 +2767,67 @@ body.firebase-banner-active .hero-banner {
     right: 14px;
     z-index: 110;
 }
+
+/* ===== Modo Embed Fullscreen ===== */
+
+/* Label do checkbox fullEmbed no painel admin */
+.fullEmbed-toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+}
+.fullEmbed-toggle-label input[type="checkbox"] {
+    accent-color: #2b6cb0;
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+}
+
+/* Player em modo fullEmbed: container sem altura fixa, ocupa tudo */
+.player-modal-container.player-fullEmbed {
+    display: flex;
+    flex-direction: column;
+    height: 90vh;
+    max-height: 90vh;
+}
+
+/* Iframe expande para preencher todo o espaço restante */
+.video-iframe-wrapper.player-fullEmbed-video {
+    aspect-ratio: unset;
+    flex: 1;
+    height: 100%;
+}
+
+/* Botão fechar flutuante sobre o iframe no modo fullEmbed */
+.player-modal-container.player-fullEmbed .player-meta-fullEmbed {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 150;
+}
+
+/* Botão fechar flutuante no modo fullEmbed */
+.btn-fullEmbed-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 150;
+    padding: 6px 16px;
+    border-radius: 5px;
+    background-color: var(--netflix-red);
+    border: none;
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+}
+.btn-fullEmbed-close:hover { background-color: #f40612; }
+.btn-fullEmbed-close.hidden { display: none; }

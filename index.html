@@ -209,6 +209,9 @@
 
         <div class="player-modal-container">
             <div class="video-iframe-wrapper">
+                <!-- Botão fechar flutuante: visível apenas no modo fullEmbed -->
+                <button class="btn-fullEmbed-close hidden" id="btn-fullEmbed-close" title="Fechar">Fechar</button>
+
                 <!-- Player do YouTube (IFrame API) inserido dinamicamente -->
                 <div id="youtube-player-placeholder"></div>
 
@@ -431,10 +434,14 @@
 
                 <div class="custom-category-section">
                     <p class="category-labels-hint" style="margin-bottom: 10px;">Criar uma nova categoria (além das 4 já existentes):</p>
-                    <div class="series-bulk-row" style="align-items: center;">
-                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                    <div class="series-bulk-row" style="align-items: center; flex-wrap: wrap; gap: 10px;">
+                        <div class="form-group" style="flex: 1; margin-bottom: 0; min-width: 160px;">
                             <input type="text" id="new-custom-category-name" class="form-control" placeholder="Ex: Animes, Shows, Infantil...">
                         </div>
+                        <label class="fullEmbed-toggle-label" title="O player ocupa toda a tela, sem área de informações abaixo — ideal para sites e conteúdos que precisam de mais espaço">
+                            <input type="checkbox" id="new-custom-category-fullembed">
+                            <span>Embed fullscreen</span>
+                        </label>
                         <button type="button" id="btn-add-custom-category" class="btn-apply-series">
                             <i data-lucide="plus"></i>
                             <span>Criar Categoria</span>

@@ -178,6 +178,14 @@ function getCustomCategories() {
     return sharedSettings.customCategories || [];
 }
 
+// Retorna true se a categoria do vídeo está marcada como "Embed Fullscreen"
+// (player ocupa toda a área sem mostrar informações abaixo)
+function isCategoryFullEmbed(video) {
+    if (!video) return false;
+    const cat = getCustomCategories().find(c => c.key === video.category);
+    return !!(cat && cat.fullEmbed);
+}
+
 // Salva a lista de categorias personalizadas no Firebase. Se o Firebase estiver indisponível, a ação
 // é cancelada (nada é salvo localmente) e retorna false para o chamador tratar o cancelamento.
 function saveCustomCategories(categories) {
@@ -286,11 +294,26 @@ function renderCustomCategoriesAdminList() {
     container.innerHTML = categories.map(cat => `
         <div class="custom-category-item">
             <span>${escapeHtmlForCategory(cat.label)}</span>
+            <label class="fullEmbed-toggle-label" title="Player em tela cheia (ideal para sites embedados)">
+                <input type="checkbox" class="chk-fullembed" data-key="${cat.key}" ${cat.fullEmbed ? 'checked' : ''}>
+                <span>Fullscreen</span>
+            </label>
             <button type="button" class="btn-delete-custom-category" data-key="${cat.key}" title="Excluir categoria">
                 <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
             </button>
         </div>
     `).join('');
+
+    // Listener para toggle fullEmbed em categorias existentes
+    container.querySelectorAll('.chk-fullembed').forEach(chk => {
+        chk.addEventListener('change', () => {
+            const key = chk.getAttribute('data-key');
+            const updated = getCustomCategories().map(c =>
+                c.key === key ? { ...c, fullEmbed: chk.checked } : c
+            );
+            saveCustomCategories(updated);
+        });
+    });
 
     lucide.createIcons();
 
@@ -383,9 +406,7 @@ function getMyListVideos(videos) {
 let activeYoutubePlayer = null; // Instância do YT.Player quando a API estiver pronta
 let pendingAutoplayVideoId = null; // Guarda o vídeo a carregar caso a API do YouTube ainda não tenha carregado
 let currentPlayingVideo = null; // Vídeo atualmente aberto no player (usado para calcular o próximo capítulo)
-let pendingNextEpisode = null; // Próximo capítulo aguardando confirmação/contagem regressiva
-let nextEpisodeCountdownInterval = null;
-let nextEpisodeSecondsLeft = 10;
+// Variáveis de countdown removidas (autoplay imediato — sem contagem regressiva)
 let toastHideTimeout = null;
 
 // Pool de nomes para gerador de elenco simulado
@@ -443,7 +464,7 @@ const btnRandomPickWatch = document.getElementById('btn-random-pick-watch');
 const btnRandomPickAgain = document.getElementById('btn-random-pick-again');
 const closePassModal = document.getElementById('close-pass-modal');
 const closeAdminModal = document.getElementById('close-admin-modal');
-const closePlayerBtn = document.getElementById('close-player-btn');
+// close-player-btn é gerenciado exclusivamente pelo initPlayerMenu
 const btnSubmitPass = document.getElementById('btn-submit-pass');
 const adminPassInput = document.getElementById('admin-pass-input');
 
@@ -726,7 +747,8 @@ function setupEventListeners() {
                 return;
             }
 
-            existingCustom.push({ key, label: name });
+            const fullEmbedCheck = document.getElementById('new-custom-category-fullembed');
+            existingCustom.push({ key, label: name, fullEmbed: fullEmbedCheck ? fullEmbedCheck.checked : false });
             const saved = saveCustomCategories(existingCustom);
             if (!saved) return; // Firebase indisponível: já avisamos, não finge que criou a categoria
 
@@ -735,6 +757,8 @@ function setupEventListeners() {
             filterAndRenderRows();
 
             input.value = '';
+            const fullEmbedChk = document.getElementById('new-custom-category-fullembed');
+            if (fullEmbedChk) fullEmbedChk.checked = false;
             showToast(`Categoria "${name}" criada com sucesso!`);
         });
     }
@@ -2114,18 +2138,10 @@ function createOrLoadYoutubePlayer(videoId) {
 }
 
 // Alguns vídeos não podem ser reproduzidos embutidos no site (o dono do vídeo bloqueou a incorporação,
-// o vídeo foi removido/é privado, etc). Nesses casos o player do YouTube mostraria uma mensagem de erro
-// como "Vídeo indisponível" com um link para assistir no YouTube — em vez de mostrar essa mensagem,
+// ou o vídeo foi removido/é privado). O player mostraria "Vídeo indisponível" — em vez disso,
 // fechamos nosso player e abrimos o vídeo diretamente no YouTube em uma nova aba.
-// Alguns vídeos não podem ser reproduzidos embutidos no site (o dono do vídeo bloqueou a incorporação,
-// ou o vídeo foi removido/é privado). Nesses casos o player do YouTube mostraria uma mensagem de erro
-// como "Vídeo indisponível" com um link para assistir no YouTube — em vez de mostrar essa mensagem,
-// fechamos nosso player e abrimos o vídeo diretamente no YouTube em uma nova aba.
-//
-// IMPORTANTE: só fazemos isso para os códigos de erro que realmente significam "não é possível
-// incorporar este vídeo". Outros códigos (parâmetro inválido, erro genérico do player HTML5) podem
-// ser falhas passageiras e NÃO significam que o vídeo está indisponível — nesses casos não redirecionamos,
-// para não abrir o YouTube desnecessariamente em vídeos que na verdade funcionam.
+// IMPORTANTE: só fazemos isso para os códigos que realmente significam "não incorporável".
+// Outros códigos podem ser falhas passageiras e não redirecionamos para não abrir o YouTube desnecessariamente.
 function handlePlayerError(event) {
     const code = event.data;
 
@@ -2196,9 +2212,7 @@ function closeBlockedVideoModal() {
     if (modal) modal.classList.add('hidden');
 }
 
-// Detecta o fim da reprodução para oferecer o próximo capítulo automaticamente (apenas séries)
-// Detecta o fim da reprodução e já inicia o próximo capítulo IMEDIATAMENTE, sem intervalo/espera entre
-// os episódios de uma série (o aviso com contagem regressiva foi removido a pedido do usuário)
+// Ao terminar um episódio, inicia o próximo imediatamente (sem contagem regressiva)
 function handlePlayerStateChange(event) {
     if (typeof YT === 'undefined') return;
 
@@ -2272,7 +2286,9 @@ function findPrevEpisode(video) {
 function updatePlayerNavButtons(video) {
     const prev = findPrevEpisode(video);
     const next = findNextEpisode(video);
-    const isSeries = !!(prev || next); // tem episódios adjacentes → é série
+    // isSeries: tem episódios adjacentes OU é categoria série com nome definido
+    // (cobre episódios únicos que não têm prev/next mas ainda são de série)
+    const isSeries = !!(prev || next) || !!(video && video.category === 'series' && video.seriesName);
 
     // Desktop: botões laterais
     const btnPrev = document.getElementById('player-btn-prev');
@@ -2280,12 +2296,9 @@ function updatePlayerNavButtons(video) {
     if (btnPrev) { btnPrev.classList.toggle('hidden', !prev); btnPrev.onclick = prev ? () => { playerModal._navigatingEpisodes = true; openPlayerModal(prev); } : null; }
     if (btnNext) { btnNext.classList.toggle('hidden', !next); btnNext.onclick = next ? () => { playerModal._navigatingEpisodes = true; openPlayerModal(next); } : null; }
 
-    // Guarda referências de navegação
-    const playerModal = document.getElementById('player-modal');
-    if (playerModal) {
-        playerModal._swipePrev = prev;
-        playerModal._swipeNext = next;
-    }
+    // Guarda referências de navegação no playerModal global
+    playerModal._swipePrev = prev;
+    playerModal._swipeNext = next;
 
     // Atualiza o botão Menu/Fechar conforme contexto:
     // - Desktop: sempre "FECHAR" vermelho
@@ -2304,8 +2317,6 @@ function updatePlayerNavButtons(video) {
     }
 }
 
-// Swipe horizontal no player modal para navegar entre episódios (mobile)
-// Um swipe é reconhecido quando o deslize horizontal supera 60px e é maior que o vertical (não é scroll)
 ;(function initPlayerMenu() {
     document.addEventListener('DOMContentLoaded', () => {
         const modal    = document.getElementById('player-modal');
@@ -2395,14 +2406,8 @@ function updatePlayerNavButtons(video) {
     });
 })();
 
-// Mantida por compatibilidade (chamada ao abrir/fechar o player) — hoje só limpa variáveis de estado,
-// já que o antigo aviso com contagem regressiva foi removido (episódios avançam sem intervalo)
 function cancelNextEpisodeCountdown() {
-    if (nextEpisodeCountdownInterval) {
-        clearInterval(nextEpisodeCountdownInterval);
-        nextEpisodeCountdownInterval = null;
-    }
-    pendingNextEpisode = null;
+    // Reservado para cancelar timers de autoplay se forem reintroduzidos no futuro
 }
 
 // Abrir Vídeo no Modal
@@ -2419,11 +2424,19 @@ function openPlayerModal(video) {
     // tela de origem já está registrada e não deve ser sobrescrita.
     if (!playerModal._navigatingEpisodes) {
         const seriesModal = document.getElementById('modal-series-episodes');
-        playerModal._returnToSeries = seriesModal && !seriesModal.classList.contains('hidden');
-        // Guarda snapshot da série no momento da abertura (não referência global mutável)
-        if (playerModal._returnToSeries && window._lastSeriesEpisodes) {
-            playerModal._snapshotEpisodes = window._lastSeriesEpisodes;
-            playerModal._snapshotRepresentative = window._lastSeriesRepresentative;
+        const comingFromSeries = seriesModal && !seriesModal.classList.contains('hidden');
+        playerModal._returnToSeries = comingFromSeries;
+        if (comingFromSeries) {
+            // Reconstrói o snapshot a partir dos próprios dados do vídeo — sem depender de globais mutáveis
+            const seriesVideos = allVideos.filter(v =>
+                v.category === 'series' &&
+                v.seriesName &&
+                video.seriesName &&
+                v.seriesName.trim().toLowerCase() === video.seriesName.trim().toLowerCase()
+            ).sort((a, b) => (a.episodeOrder ?? Infinity) - (b.episodeOrder ?? Infinity));
+            const representative = seriesVideos[0] || video;
+            playerModal._snapshotEpisodes = seriesVideos;
+            playerModal._snapshotRepresentative = representative;
         } else {
             playerModal._snapshotEpisodes = null;
             playerModal._snapshotRepresentative = null;
@@ -2436,6 +2449,27 @@ function openPlayerModal(video) {
 
     // Mostra/oculta os botões de anterior/próximo conforme a posição do episódio na série
     updatePlayerNavButtons(video);
+
+    // Modo fullEmbed: esconde área de info e expande o iframe para preencher o modal
+    const playerContainer = playerModal.querySelector('.player-modal-container');
+    const infoContainer = playerModal.querySelector('.player-info-container');
+    const iframeWrapper = playerModal.querySelector('.video-iframe-wrapper');
+    const fullEmbedCloseBtn = document.getElementById('btn-fullEmbed-close');
+    const isFullEmbed = isCategoryFullEmbed(video);
+    if (playerContainer) playerContainer.classList.toggle('player-fullEmbed', isFullEmbed);
+    if (infoContainer) infoContainer.classList.toggle('hidden', isFullEmbed);
+    if (iframeWrapper) iframeWrapper.classList.toggle('player-fullEmbed-video', isFullEmbed);
+    if (fullEmbedCloseBtn) {
+        fullEmbedCloseBtn.classList.toggle('hidden', !isFullEmbed);
+        fullEmbedCloseBtn.onclick = isFullEmbed ? () => closePlayerModal() : null;
+    }
+    // Botões laterais de navegação somem no fullEmbed
+    const btnNavPrev = document.getElementById('player-btn-prev');
+    const btnNavNext = document.getElementById('player-btn-next');
+    if (isFullEmbed) {
+        if (btnNavPrev) btnNavPrev.classList.add('hidden');
+        if (btnNavNext) btnNavNext.classList.add('hidden');
+    }
 
     // Configura as informações do modal
     document.getElementById('modal-video-title').textContent = video.title;

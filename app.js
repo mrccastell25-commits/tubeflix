@@ -76,7 +76,8 @@ let sharedSettings = {
     customCategories: [],
     favorites: [],
     watchHistory: [],
-    gridDensity: '4'
+    gridDensity: '4',
+    radioclipCategory: ''   // categoria usada pelo RadioClip (chave interna, ex: "video_clips")
 };
 
 // Retorna a senha atual do painel: a customizada pelo admin (se houver), ou a padrão de fábrica
@@ -152,7 +153,8 @@ function listenToSharedSettings() {
             customCategories: data.customCategories || [],
             favorites: data.favorites || [],
             watchHistory: data.watchHistory || [],
-            gridDensity: data.gridDensity || '4'
+            gridDensity: data.gridDensity || '4',
+            radioclipCategory: data.radioclipCategory || ''
         };
         myFavoriteList = sharedSettings.favorites;
 
@@ -700,6 +702,7 @@ function setupEventListeners() {
             document.getElementById('cat-label-documentarios').value = labels.documentarios;
             document.getElementById('cat-label-tutoriais').value = labels.tutoriais;
             renderCustomCategoriesAdminList();
+            refreshRadioclipCategorySelect();
             if (passwordChangePanel) passwordChangePanel.classList.add('hidden');
             categoryLabelsPanel.classList.toggle('hidden');
         });
@@ -856,12 +859,31 @@ function setupEventListeners() {
                 warnFirebaseUnavailable();
                 return;
             }
+            // Se a stack view estiver aberta, fecha ela antes de alternar a grade
+            if (stackViewOpen) closeStackView();
             const isDensity3Now = document.body.classList.contains('grid-density-3');
             const newDensity = isDensity3Now ? '4' : '3';
             sharedSettings.gridDensity = newDensity; // atualização otimista local, imediata na tela
             settingsRef.child('gridDensity').set(newDensity);
             applyGridDensityPreference();
         });
+    }
+
+    // Stack view — 3ª visão: cards empilhados com scroll vertical
+    const btnToggleStackView = document.getElementById('btn-toggle-stack-view');
+    if (btnToggleStackView) {
+        btnToggleStackView.addEventListener('click', () => {
+            if (stackViewOpen) {
+                closeStackView();
+            } else {
+                openStackView();
+            }
+        });
+    }
+
+    const btnCloseStackView = document.getElementById('btn-close-stack-view');
+    if (btnCloseStackView) {
+        btnCloseStackView.addEventListener('click', closeStackView);
     }
 
     // Validação de senha
@@ -2714,6 +2736,134 @@ function openVideoDetails(video) {
     openPlayerModal(video);
 }
 
+// =====================================================
+//  STACK VIEW — cards empilhados com scroll vertical
+// =====================================================
+
+let stackViewOpen = false;
+let stackScrollObserver = null;
+
+function getStackViewVideos() {
+    // Respeita o filtro e a busca ativas no momento em que a stack é aberta
+    return allVideos.filter(v => {
+        const catOk = activeCategoryFilter === 'todos' || v.category === activeCategoryFilter || (activeCategoryFilter === 'favoritos' && myFavoriteList.includes(v.id));
+        const q = currentSearchQuery.toLowerCase();
+        const searchOk = !q || v.title.toLowerCase().includes(q) || (v.director || '').toLowerCase().includes(q) || (v.category || '').toLowerCase().includes(q);
+        return catOk && searchOk;
+    });
+}
+
+function getAllCategoryLabel(catKey) {
+    const map = getAllCategoryLabelsMap();
+    return map[catKey] || catKey;
+}
+
+function openStackView() {
+    const overlay = document.getElementById('stack-view-overlay');
+    const track = document.getElementById('stack-view-track');
+    const labelEl = document.getElementById('stack-view-label');
+    if (!overlay || !track) return;
+
+    const videos = getStackViewVideos();
+    if (!videos.length) {
+        showToast('Nenhum vídeo disponível para esta visão.', { duration: 2500 });
+        return;
+    }
+
+    // Atualiza label do cabeçalho
+    const catLabel = activeCategoryFilter === 'todos' ? 'Todos os títulos'
+        : activeCategoryFilter === 'favoritos' ? 'Minha Lista'
+        : getAllCategoryLabel(activeCategoryFilter);
+    if (labelEl) labelEl.textContent = catLabel;
+
+    // Constrói os cards
+    track.innerHTML = '';
+
+    // Remove observer anterior
+    if (stackScrollObserver) stackScrollObserver.disconnect();
+
+    const categoryLabelsMap = getAllCategoryLabelsMap();
+
+    videos.forEach((video, idx) => {
+        const isSeriesGroup = Array.isArray(video.episodes) && video.episodes.length > 1;
+        const cardTitle = isSeriesGroup ? (video.seriesName || video.title) : video.title;
+        const catName = categoryLabelsMap[video.category] || video.category || '';
+        const ratingClass = (video.rating || 'L').toLowerCase();
+        const ratingText = video.rating === 'L' || !video.rating ? 'L' : `${video.rating}+`;
+
+        const section = document.createElement('div');
+        section.className = 'stack-card-section';
+        section.dataset.idx = idx;
+
+        section.innerHTML = `
+            <div class="stack-card">
+                <img
+                    src="${video.imageUrl}"
+                    alt="${cardTitle}"
+                    class="stack-card-image"
+                    loading="${idx < 3 ? 'eager' : 'lazy'}"
+                    style="${getPosterImageStyle(video)}"
+                >
+                <div class="stack-card-gradient"></div>
+                <div class="stack-card-content">
+                    ${catName ? `<span class="stack-card-badge"><i data-lucide="tag" style="width:10px;height:10px;"></i>${catName}</span>` : ''}
+                    <h2 class="stack-card-title">${cardTitle}</h2>
+                    <div class="stack-card-meta">
+                        ${video.year ? `<span>${video.year}</span>` : ''}
+                        <span class="age-rating rating-${ratingClass}">${ratingText}</span>
+                        ${isSeriesGroup ? `<span>${video.episodes.length} episódios</span>` : (video.duration ? `<span>${video.duration}</span>` : '')}
+                    </div>
+                    ${video.description ? `<p class="stack-card-desc">${video.description}</p>` : ''}
+                    <button class="stack-card-watch-btn" data-idx="${idx}">
+                        <i data-lucide="${isSeriesGroup ? 'list' : 'play'}" style="width:18px;height:18px;fill:${isSeriesGroup ? 'none' : 'currentColor'};"></i>
+                        ${isSeriesGroup ? 'Ver episódios' : 'Assistir'}
+                    </button>
+                </div>
+                ${idx === 0 ? `
+                <div class="stack-scroll-hint">
+                    <i data-lucide="chevron-down" style="width:22px;height:22px;"></i>
+                    <span>deslize para navegar</span>
+                </div>` : ''}
+            </div>
+        `;
+
+        // Botão de assistir
+        section.querySelector('.stack-card-watch-btn').addEventListener('click', () => {
+            if (isSeriesGroup) {
+                openSeriesEpisodesModal(video.episodes, video);
+            } else {
+                openPlayerModal(video);
+            }
+        });
+
+        track.appendChild(section);
+    });
+
+    lucide.createIcons();
+
+    overlay.classList.remove('hidden');
+    stackViewOpen = true;
+    document.body.style.overflow = 'hidden';
+
+    // Reseta scroll
+    track.scrollTop = 0;
+
+    // Botão de fechar
+    const btnClose = document.getElementById('btn-close-stack-view');
+    const btnStack = document.getElementById('btn-toggle-stack-view');
+    if (btnStack) btnStack.classList.add('active');
+}
+
+function closeStackView() {
+    const overlay = document.getElementById('stack-view-overlay');
+    if (overlay) overlay.classList.add('hidden');
+    if (stackScrollObserver) stackScrollObserver.disconnect();
+    stackViewOpen = false;
+    document.body.style.overflow = '';
+    const btnStack = document.getElementById('btn-toggle-stack-view');
+    if (btnStack) btnStack.classList.remove('active');
+}
+
 // 11. Lista de Gerenciamento no Painel Admin (CRUD)
 function renderAdminList() {
     adminVideosContainer.innerHTML = '';
@@ -2936,3 +3086,261 @@ function importLibraryFromJson(e) {
     };
     reader.readAsText(file);
 }
+
+// ===== RadioClip =====
+// Estado da sessão do rádio
+const radioClipState = {
+    queue: [],          // lista de vídeos a tocar
+    currentIndex: -1,   // índice do vídeo tocando agora
+    ytPlayer: null,     // instância do YT.Player dedicada ao rádio
+    ytReady: false
+};
+
+// Retorna a chave interna da categoria configurada para o RadioClip
+function getRadioclipCategory() {
+    return sharedSettings.radioclipCategory || '';
+}
+
+// Retorna vídeos que devem aparecer em uma categoria (pela lógica de exibição: displayCategory || category)
+function getVideosByDisplayCategory(categoryKey) {
+    if (!categoryKey) return [];
+    return allVideos.filter(v => {
+        const display = v.displayCategory || v.category;
+        return display === categoryKey;
+    });
+}
+
+// Embaralha um array (Fisher-Yates)
+function shuffleArray(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+// Abre o modal do RadioClip e inicia a playlist
+function openRadioClip() {
+    const catKey = getRadioclipCategory();
+    if (!catKey) {
+        showToast('Configure a categoria do RadioClip no painel admin primeiro.', { isError: true });
+        return;
+    }
+
+    const pool = getVideosByDisplayCategory(catKey);
+    if (pool.length === 0) {
+        showToast('Nenhum vídeo encontrado na categoria configurada para o RadioClip.', { isError: true });
+        return;
+    }
+
+    // Sorteia até 20 vídeos aleatórios
+    radioClipState.queue = shuffleArray(pool).slice(0, 20);
+    radioClipState.currentIndex = 0;
+
+    // Garante que o player anterior foi destruído antes de criar um novo
+    if (radioClipState.ytPlayer && typeof radioClipState.ytPlayer.destroy === 'function') {
+        try { radioClipState.ytPlayer.destroy(); } catch (_) {}
+        radioClipState.ytPlayer = null;
+    }
+    const wrap = document.getElementById('radioclip-iframe-wrap');
+    if (wrap) wrap.innerHTML = '';
+
+    const modal = document.getElementById('modal-radioclip');
+    if (modal) modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+
+    radioClipPlayCurrent();
+    renderRadioClipQueue();
+}
+
+// Toca o vídeo atual da fila
+function radioClipPlayCurrent() {
+    const video = radioClipState.queue[radioClipState.currentIndex];
+    if (!video) return;
+
+    // Atualiza o título "tocando agora"
+    const nowTitle = document.getElementById('radioclip-now-title');
+    if (nowTitle) nowTitle.textContent = video.title;
+
+    const wrap = document.getElementById('radioclip-iframe-wrap');
+    if (!wrap) return;
+
+    if (video.sourceType === 'youtube' && video.videoId) {
+        // Usa a YT.Player API (mesmo mecanismo do player principal) para detectar fim do vídeo
+        if (radioClipState.ytPlayer && typeof radioClipState.ytPlayer.loadVideoById === 'function') {
+            // Player já existe — só troca o vídeo
+            radioClipState.ytPlayer.loadVideoById(video.videoId);
+        } else {
+            // Cria o placeholder e instancia o YT.Player
+            wrap.innerHTML = '<div id="radioclip-yt-placeholder"></div>';
+
+            const initPlayer = () => {
+                radioClipState.ytPlayer = new YT.Player('radioclip-yt-placeholder', {
+                    videoId: video.videoId,
+                    playerVars: { autoplay: 1, rel: 0 },
+                    events: {
+                        onStateChange: (e) => {
+                            if (e.data === YT.PlayerState.ENDED) radioClipNext();
+                        },
+                        onError: (e) => {
+                            // Vídeo bloqueado: pula para o próximo automaticamente
+                            console.warn('RadioClip: erro no vídeo, pulando.', e.data);
+                            radioClipNext();
+                        }
+                    }
+                });
+            };
+
+            if (typeof YT !== 'undefined' && YT.Player) {
+                initPlayer();
+            } else {
+                // API ainda não carregou — aguarda o callback global onYouTubeIframeAPIReady
+                const original = window.onYouTubeIframeAPIReady;
+                window.onYouTubeIframeAPIReady = () => {
+                    if (original) original();
+                    initPlayer();
+                };
+            }
+        }
+    } else {
+        // Vídeo não-YouTube: iframe genérico; avanço manual pelo usuário
+        radioClipState.ytPlayer = null;
+        wrap.innerHTML = `<iframe src="${video.embedUrl || video.url}" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
+    }
+}
+
+// Avança para o próximo vídeo da fila
+function radioClipNext() {
+    if (radioClipState.currentIndex < radioClipState.queue.length - 1) {
+        radioClipState.currentIndex++;
+        radioClipPlayCurrent();
+        renderRadioClipQueue();
+    } else {
+        // Fila acabou — regenera com novos vídeos aleatórios
+        const catKey = getRadioclipCategory();
+        const pool = getVideosByDisplayCategory(catKey);
+        if (pool.length > 0) {
+            radioClipState.queue = shuffleArray(pool).slice(0, 20);
+            radioClipState.currentIndex = 0;
+            radioClipPlayCurrent();
+            renderRadioClipQueue();
+            showToast('Nova playlist gerada!', { duration: 2000 });
+        }
+    }
+}
+
+// Renderiza a lista de próximos vídeos (todos exceto o atual)
+function renderRadioClipQueue() {
+    const list = document.getElementById('radioclip-queue-list');
+    if (!list) return;
+
+    const upcoming = radioClipState.queue.slice(radioClipState.currentIndex + 1);
+
+    if (upcoming.length === 0) {
+        list.innerHTML = '<li style="padding:12px;color:var(--text-muted);font-size:0.82rem;">Fim da fila — uma nova playlist será gerada automaticamente.</li>';
+        return;
+    }
+
+    list.innerHTML = upcoming.map((video, i) => {
+        const globalIdx = radioClipState.currentIndex + 1 + i;
+        const thumb = video.imageUrl || `https://img.youtube.com/vi/${video.videoId}/mqdefault.jpg`;
+        return `
+        <li class="radioclip-queue-item" data-idx="${globalIdx}">
+            <img class="radioclip-queue-thumb" src="${thumb}" alt="" onerror="this.src='https://img.youtube.com/vi/${video.videoId}/mqdefault.jpg'">
+            <div class="radioclip-queue-info">
+                <div class="radioclip-queue-name">${video.title}</div>
+                <div class="radioclip-queue-meta">${video.duration || ''} ${video.director ? '· ' + video.director : ''}</div>
+            </div>
+            <button class="btn-radioclip-remove" data-idx="${globalIdx}" title="Remover da fila">
+                <i data-lucide="x" style="width:14px;height:14px;"></i>
+            </button>
+        </li>`;
+    }).join('');
+
+    lucide.createIcons();
+
+    // Clicar no item: pula para aquele vídeo
+    list.querySelectorAll('.radioclip-queue-item').forEach(li => {
+        li.addEventListener('click', (e) => {
+            if (e.target.closest('.btn-radioclip-remove')) return;
+            radioClipState.currentIndex = parseInt(li.dataset.idx);
+            radioClipPlayCurrent();
+            renderRadioClipQueue();
+        });
+    });
+
+    // Remover da fila
+    list.querySelectorAll('.btn-radioclip-remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const idx = parseInt(btn.dataset.idx);
+            radioClipState.queue.splice(idx, 1);
+            if (radioClipState.currentIndex >= radioClipState.queue.length) {
+                radioClipState.currentIndex = radioClipState.queue.length - 1;
+            }
+            renderRadioClipQueue();
+        });
+    });
+}
+
+// Fecha o RadioClip
+function closeRadioClip() {
+    const modal = document.getElementById('modal-radioclip');
+    if (modal) modal.classList.add('hidden');
+    document.body.style.overflow = '';
+
+    // Para o vídeo e destrói o YT.Player do rádio
+    if (radioClipState.ytPlayer && typeof radioClipState.ytPlayer.destroy === 'function') {
+        try { radioClipState.ytPlayer.destroy(); } catch (_) {}
+    }
+    radioClipState.ytPlayer = null;
+
+    const wrap = document.getElementById('radioclip-iframe-wrap');
+    if (wrap) wrap.innerHTML = '';
+
+    radioClipState.currentIndex = -1;
+    radioClipState.queue = [];
+}
+
+// Popula o select de categoria no painel admin com todas as categorias disponíveis
+function refreshRadioclipCategorySelect() {
+    const sel = document.getElementById('radioclip-category-select');
+    if (!sel) return;
+    const current = sharedSettings.radioclipCategory || '';
+    const allLabels = getAllCategoryLabelsMap();
+    sel.innerHTML = '<option value="">— Escolha uma categoria —</option>' +
+        Object.entries(allLabels).map(([key, label]) =>
+            `<option value="${key}" ${key === current ? 'selected' : ''}>${label}</option>`
+        ).join('');
+}
+
+// Inicialização dos listeners do RadioClip
+document.addEventListener('DOMContentLoaded', () => {
+    // Botão no hero
+    const btnHero = document.getElementById('btn-radioclip-hero');
+    if (btnHero) btnHero.addEventListener('click', openRadioClip);
+
+    // Fechar
+    const btnClose = document.getElementById('close-radioclip-btn');
+    if (btnClose) btnClose.addEventListener('click', closeRadioClip);
+
+    // Fechar ao clicar fora do card
+    const modal = document.getElementById('modal-radioclip');
+    if (modal) modal.addEventListener('click', e => { if (e.target === modal) closeRadioClip(); });
+
+    // Salvar categoria no admin
+    const btnSave = document.getElementById('btn-save-radioclip-category');
+    if (btnSave) {
+        btnSave.addEventListener('click', () => {
+            const sel = document.getElementById('radioclip-category-select');
+            const key = sel ? sel.value : '';
+            if (!key) { showToast('Escolha uma categoria.', { isError: true }); return; }
+            if (useLocalStorageFallback) { warnFirebaseUnavailable(); return; }
+            settingsRef.child('radioclipCategory').set(key).then(() => {
+                sharedSettings.radioclipCategory = key;
+                showToast('Categoria do RadioClip salva!');
+            });
+        });
+    }
+});

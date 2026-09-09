@@ -90,10 +90,6 @@
                     <i data-lucide="dices"></i>
                     <span>Escolha por Mim</span>
                 </button>
-                <button class="btn-info-hero btn-radioclip-hero" id="btn-radioclip-hero">
-                    <i data-lucide="radio"></i>
-                    <span>RadioClip</span>
-                </button>
             </div>
         </div>
         <div class="hero-gradient-bottom"></div>
@@ -296,35 +292,6 @@
         </div>
     </div>
 
-    <!-- Modal RadioClip: player + fila de próximos vídeos estilo Spotify -->
-    <div id="modal-radioclip" class="modal-overlay hidden">
-        <div class="radioclip-card">
-            <div class="radioclip-header">
-                <div class="radioclip-header-left">
-                    <i data-lucide="radio" style="width:18px;height:18px;color:var(--netflix-red)"></i>
-                    <span class="radioclip-title-label">RadioClip</span>
-                    <span class="radioclip-now-playing" id="radioclip-now-title">—</span>
-                </div>
-                <button class="btn-close-player" id="close-radioclip-btn" style="position:static;margin-left:auto;">Fechar</button>
-            </div>
-
-            <div class="radioclip-body">
-                <!-- Player -->
-                <div class="radioclip-player-wrap">
-                    <div class="radioclip-iframe-wrap" id="radioclip-iframe-wrap">
-                        <!-- iframe inserido dinamicamente -->
-                    </div>
-                </div>
-
-                <!-- Fila estilo Spotify -->
-                <div class="radioclip-queue-panel">
-                    <p class="radioclip-queue-label">A seguir</p>
-                    <ul class="radioclip-queue-list" id="radioclip-queue-list"></ul>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Modal "Escolha por Mim": pião 3D girando com as capas, para sortear um vídeo -->
     <div id="modal-random-pick" class="modal-overlay hidden">
         <div class="random-pick-card">
@@ -375,27 +342,25 @@
         </div>
     </div>
 
-    <!-- Botões flutuantes (celular): alternância de visualização -->
-    <div class="floating-view-btns" id="floating-view-btns">
+    <!-- Botões flutuantes (celular): grade e visão empilhada -->
+    <div class="floating-view-btns">
         <button id="btn-toggle-grid-density" class="btn-toggle-density" title="Alternar tamanho das capas">
             <i data-lucide="grid-3x3"></i>
         </button>
-        <button id="btn-toggle-stack-view" class="btn-toggle-density btn-stack-view" title="Visão em cards empilhados" onclick="window.stackViewOpen ? window.closeStackView() : window.openStackView()">
+        <button id="btn-toggle-stack-view" class="btn-toggle-density btn-stack-view" title="Visão em cards empilhados" onclick="stackViewOpen?closeStackView():openStackView()">
             <i data-lucide="layers"></i>
         </button>
     </div>
 
-    <!-- Container da visão de cards empilhados (stack view) -->
-    <div id="stack-view-overlay" class="stack-view-overlay hidden">
+    <!-- Stack View: overlay fullscreen com cards empilhados -->
+    <div id="stack-view-overlay" class="stack-view-overlay stack-view-hidden">
         <div class="stack-view-header">
-            <span class="stack-view-category-label" id="stack-view-label">Todos os títulos</span>
-            <button id="btn-close-stack-view" class="btn-close-stack-view" title="Fechar visão empilhada" onclick="window.closeStackView()">
+            <span class="stack-view-label" id="stack-view-label">Todos os títulos</span>
+            <button class="btn-close-stack-view" onclick="closeStackView()">
                 <i data-lucide="x"></i>
             </button>
         </div>
-        <div class="stack-view-track" id="stack-view-track">
-            <!-- Cards inseridos dinamicamente -->
-        </div>
+        <div class="stack-view-track" id="stack-view-track"></div>
     </div>
 
     <div id="modal-series-episodes" class="modal-overlay hidden">
@@ -481,22 +446,6 @@
                 <div class="category-labels-actions">
                     <button type="button" id="btn-reset-category-labels" class="btn-cancel-action">Restaurar Padrão</button>
                     <button type="button" id="btn-save-category-labels" class="btn-auth-submit" style="width:auto; padding: 10px 20px;">Salvar Nomes</button>
-                </div>
-
-                <!-- Configuração do RadioClip -->
-                <div class="radioclip-config-section">
-                    <p class="category-labels-hint" style="margin-bottom: 8px; margin-top: 18px;">
-                        <strong>RadioClip</strong> — categoria usada para gerar a playlist automática:
-                    </p>
-                    <div class="series-bulk-row" style="align-items: center; gap: 10px;">
-                        <select id="radioclip-category-select" class="form-control" style="flex:1;">
-                            <option value="">— Escolha uma categoria —</option>
-                        </select>
-                        <button type="button" id="btn-save-radioclip-category" class="btn-apply-series">
-                            <i data-lucide="save"></i>
-                            <span>Salvar</span>
-                        </button>
-                    </div>
                 </div>
 
                 <div class="custom-category-section">

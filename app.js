@@ -94,7 +94,6 @@ function warnFirebaseUnavailable() {
 }
 
 let allVideos = [];
-let stackViewOpen = false;
 let myFavoriteList = []; // Sincronizado do Firebase em tempo real — ver saveFavoritesList()
 let activeCategoryFilter = 'todos';
 let currentSearchQuery = '';
@@ -859,7 +858,7 @@ function setupEventListeners() {
             }
             const isDensity3Now = document.body.classList.contains('grid-density-3');
             const newDensity = isDensity3Now ? '4' : '3';
-            sharedSettings.gridDensity = newDensity;
+            sharedSettings.gridDensity = newDensity; // atualização otimista local, imediata na tela
             settingsRef.child('gridDensity').set(newDensity);
             applyGridDensityPreference();
         });
@@ -2713,98 +2712,6 @@ function applyGridDensityPreference() {
 function openVideoDetails(video) {
     // Emula a funcionalidade da Netflix abrindo o player no modal, mostrando a sinopse em destaque
     openPlayerModal(video);
-}
-
-// ================================================================
-//  STACK VIEW — 3ª visão mobile: cards fullscreen empilhados
-// ================================================================
-
-function openStackView() {
-    const overlay = document.getElementById('stack-view-overlay');
-    const track   = document.getElementById('stack-view-track');
-    const labelEl = document.getElementById('stack-view-label');
-    if (!overlay || !track) return;
-
-    // Pool de vídeos respeitando o filtro ativo
-    let videos = allVideos.filter(v => {
-        if (!v) return false;
-        const catOk = activeCategoryFilter === 'todos'
-            || v.category === activeCategoryFilter
-            || (activeCategoryFilter === 'favoritos' && myFavoriteList.includes(v.id));
-        const q = (currentSearchQuery || '').toLowerCase().trim();
-        return !q || (v.title||'').toLowerCase().includes(q) || (v.director||'').toLowerCase().includes(q);
-    });
-    if (!videos.length) videos = allVideos.slice(); // fallback: sem filtro
-    if (!videos.length) { showToast('Nenhum vídeo cadastrado ainda.', { duration: 2500 }); return; }
-
-    // Label do cabeçalho
-    const catMap = getAllCategoryLabelsMap();
-    const catLabel = activeCategoryFilter === 'todos' ? 'Todos os títulos'
-        : activeCategoryFilter === 'favoritos' ? 'Minha Lista'
-        : (catMap[activeCategoryFilter] || activeCategoryFilter);
-    if (labelEl) labelEl.textContent = catLabel;
-
-    // Constrói cards
-    track.innerHTML = '';
-    videos.forEach((video, idx) => {
-        const isSeries  = Array.isArray(video.episodes) && video.episodes.length > 1;
-        const title     = isSeries ? (video.seriesName || video.title) : video.title;
-        const catName   = catMap[video.category] || '';
-        const rating    = video.rating || 'L';
-        const ratingTxt = rating === 'L' ? 'L' : rating + '+';
-        const ratingCls = rating.toLowerCase();
-        const dur       = isSeries ? video.episodes.length + ' ep.' : (video.duration || '');
-
-        const section = document.createElement('div');
-        section.className = 'stack-card-section';
-
-        section.innerHTML = `
-            <div class="stack-card">
-                <img src="${video.imageUrl}" alt="${title}" class="stack-card-img"
-                     loading="${idx < 3 ? 'eager' : 'lazy'}"
-                     style="${getPosterImageStyle(video)}">
-                <div class="stack-card-grad"></div>
-                <div class="stack-card-body">
-                    ${catName ? `<span class="stack-card-cat">${catName}</span>` : ''}
-                    <h2 class="stack-card-title">${title}</h2>
-                    <div class="stack-card-meta">
-                        ${video.year ? `<span>${video.year}</span>` : ''}
-                        <span class="age-rating rating-${ratingCls}">${ratingTxt}</span>
-                        ${dur ? `<span>${dur}</span>` : ''}
-                    </div>
-                    ${video.description ? `<p class="stack-card-desc">${video.description}</p>` : ''}
-                    <button class="stack-card-btn">
-                        <i data-lucide="${isSeries ? 'list' : 'play'}" style="width:18px;height:18px;fill:${isSeries?'none':'currentColor'}"></i>
-                        ${isSeries ? 'Ver episódios' : 'Assistir'}
-                    </button>
-                </div>
-                ${idx === 0 ? `<div class="stack-hint">
-                    <i data-lucide="chevron-down" style="width:20px;height:20px;"></i>
-                    <span>deslize para navegar</span>
-                </div>` : ''}
-            </div>`;
-
-        section.querySelector('.stack-card-btn').addEventListener('click', () => {
-            if (isSeries) openSeriesEpisodesModal(video.episodes, video);
-            else          openPlayerModal(video);
-        });
-
-        track.appendChild(section);
-    });
-
-    lucide.createIcons();
-    track.scrollTop = 0;
-    overlay.classList.remove('stack-view-hidden');
-    document.querySelector('#btn-toggle-stack-view')?.classList.add('stack-active');
-    document.body.style.overflow = 'hidden';
-    stackViewOpen = true;
-}
-
-function closeStackView() {
-    document.getElementById('stack-view-overlay')?.classList.add('stack-view-hidden');
-    document.querySelector('#btn-toggle-stack-view')?.classList.remove('stack-active');
-    document.body.style.overflow = '';
-    stackViewOpen = false;
 }
 
 // 11. Lista de Gerenciamento no Painel Admin (CRUD)

@@ -342,26 +342,10 @@
         </div>
     </div>
 
-    <!-- Botões flutuantes (celular): grade e visão empilhada -->
-    <div class="floating-view-btns">
-        <button id="btn-toggle-grid-density" class="btn-toggle-density" title="Alternar tamanho das capas">
-            <i data-lucide="grid-3x3"></i>
-        </button>
-        <button id="btn-toggle-stack-view" class="btn-toggle-density btn-stack-view" title="Visão em cards empilhados" onclick="stackViewOpen?closeStackView():openStackView()">
-            <i data-lucide="layers"></i>
-        </button>
-    </div>
-
-    <!-- Stack View: overlay fullscreen com cards empilhados -->
-    <div id="stack-view-overlay" class="stack-view-overlay stack-view-hidden">
-        <div class="stack-view-header">
-            <span class="stack-view-label" id="stack-view-label">Todos os títulos</span>
-            <button class="btn-close-stack-view" onclick="closeStackView()">
-                <i data-lucide="x"></i>
-            </button>
-        </div>
-        <div class="stack-view-track" id="stack-view-track"></div>
-    </div>
+    <!-- Botão flutuante (celular): alterna entre 4 e 3 capas por fileira -->
+    <button id="btn-toggle-grid-density" class="btn-toggle-density" title="Alternar tamanho das capas">
+        <i data-lucide="grid-3x3"></i>
+    </button>
 
     <div id="modal-series-episodes" class="modal-overlay hidden">
         <div class="series-episodes-container">

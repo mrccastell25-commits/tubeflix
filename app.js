@@ -2744,11 +2744,17 @@ let stackViewOpen = false;
 let stackScrollObserver = null;
 
 function getStackViewVideos() {
-    // Respeita o filtro e a busca ativas no momento em que a stack é aberta
+    if (!Array.isArray(allVideos) || allVideos.length === 0) return [];
     return allVideos.filter(v => {
-        const catOk = activeCategoryFilter === 'todos' || v.category === activeCategoryFilter || (activeCategoryFilter === 'favoritos' && myFavoriteList.includes(v.id));
-        const q = currentSearchQuery.toLowerCase();
-        const searchOk = !q || v.title.toLowerCase().includes(q) || (v.director || '').toLowerCase().includes(q) || (v.category || '').toLowerCase().includes(q);
+        if (!v) return false;
+        const catOk = activeCategoryFilter === 'todos'
+            || v.category === activeCategoryFilter
+            || (activeCategoryFilter === 'favoritos' && myFavoriteList.includes(v.id));
+        const q = (currentSearchQuery || '').toLowerCase().trim();
+        const searchOk = !q
+            || (v.title || '').toLowerCase().includes(q)
+            || (v.director || '').toLowerCase().includes(q)
+            || (v.category || '').toLowerCase().includes(q);
         return catOk && searchOk;
     });
 }
@@ -2758,15 +2764,22 @@ function getAllCategoryLabel(catKey) {
     return map[catKey] || catKey;
 }
 
+window.openStackView = openStackView;
+window.closeStackView = closeStackView;
+Object.defineProperty(window, "stackViewOpen", { get: () => stackViewOpen });
 function openStackView() {
     const overlay = document.getElementById('stack-view-overlay');
     const track = document.getElementById('stack-view-track');
     const labelEl = document.getElementById('stack-view-label');
     if (!overlay || !track) return;
 
-    const videos = getStackViewVideos();
+    let videos = getStackViewVideos();
+    // Se o filtro ativo retornar vazio (ex: lista de favoritos vazia), usa todos os vídeos
+    if (!videos.length && allVideos.length) {
+        videos = allVideos.slice();
+    }
     if (!videos.length) {
-        showToast('Nenhum vídeo disponível para esta visão.', { duration: 2500 });
+        showToast('Nenhum vídeo cadastrado ainda.', { duration: 2500 });
         return;
     }
 

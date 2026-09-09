@@ -380,7 +380,7 @@
         <button id="btn-toggle-grid-density" class="btn-toggle-density" title="Alternar tamanho das capas">
             <i data-lucide="grid-3x3"></i>
         </button>
-        <button id="btn-toggle-stack-view" class="btn-toggle-density btn-stack-view" title="Visão em cards empilhados">
+        <button id="btn-toggle-stack-view" class="btn-toggle-density btn-stack-view" title="Visão em cards empilhados" onclick="window.stackViewOpen ? window.closeStackView() : window.openStackView()">
             <i data-lucide="layers"></i>
         </button>
     </div>
@@ -389,7 +389,7 @@
     <div id="stack-view-overlay" class="stack-view-overlay hidden">
         <div class="stack-view-header">
             <span class="stack-view-category-label" id="stack-view-label">Todos os títulos</span>
-            <button id="btn-close-stack-view" class="btn-close-stack-view" title="Fechar visão empilhada">
+            <button id="btn-close-stack-view" class="btn-close-stack-view" title="Fechar visão empilhada" onclick="window.closeStackView()">
                 <i data-lucide="x"></i>
             </button>
         </div>

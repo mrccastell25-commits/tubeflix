@@ -1797,6 +1797,18 @@ function filterAndRenderRows() {
         if (isSectionVisible) {
             section.classList.remove('hidden');
             renderCarouselCards(carousel, rowVideos);
+            // Atualiza o contador de itens ao lado do título da fileira.
+            // rowVideos já passou por groupAndSortSeriesEpisodes, então séries com vários
+            // capítulos aparecem como 1 único card — o count reflete exatamente os cards visíveis.
+            const titleEl = section.querySelector('.row-title');
+            if (titleEl) {
+                const existingBadge = titleEl.querySelector('.row-count-badge');
+                if (existingBadge) existingBadge.remove();
+                const badge = document.createElement('span');
+                badge.className = 'row-count-badge';
+                badge.textContent = rowVideos.length;
+                titleEl.appendChild(badge);
+            }
         } else {
             section.classList.add('hidden');
         }

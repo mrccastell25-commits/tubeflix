@@ -1797,6 +1797,20 @@ function filterAndRenderRows() {
         if (isSectionVisible) {
             section.classList.remove('hidden');
             renderCarouselCards(carousel, rowVideos);
+            // Atualiza o contador de itens ao lado do título da fileira.
+            // "rowVideos" já está após groupAndSortSeriesEpisodes, então séries
+            // com vários capítulos já aparecem como 1 único card — o count reflete exatamente
+            // o número de cards visíveis, sem duplicar capítulos.
+            const titleEl = section.querySelector('.row-title');
+            if (titleEl) {
+                // Remove badge anterior se houver
+                const existingBadge = titleEl.querySelector('.row-count-badge');
+                if (existingBadge) existingBadge.remove();
+                const badge = document.createElement('span');
+                badge.className = 'row-count-badge';
+                badge.textContent = rowVideos.length;
+                titleEl.appendChild(badge);
+            }
         } else {
             section.classList.add('hidden');
         }
@@ -2625,7 +2639,24 @@ let randomPickWinnerVideo = null;
 let randomPickSpinTimeout = null;
 
 function openRandomPickModal() {
-    const pool = allVideos.filter(v => v.imageUrl);
+    // Para séries com vários capítulos, inclui apenas o primeiro capítulo (menor episodeOrder)
+    // de cada série no sorteio — evita que uma série com muitos capítulos domine o pião.
+    const seriesFirstEpisodeMap = {}; // seriesName.toLowerCase() -> video do 1º capítulo
+    allVideos.forEach(v => {
+        if (v.category !== 'series' || !v.seriesName || !v.imageUrl) return;
+        const key = v.seriesName.trim().toLowerCase();
+        const order = v.episodeOrder != null ? Number(v.episodeOrder) : Infinity;
+        const existing = seriesFirstEpisodeMap[key];
+        if (!existing || order < (existing.episodeOrder != null ? Number(existing.episodeOrder) : Infinity)) {
+            seriesFirstEpisodeMap[key] = v;
+        }
+    });
+
+    // Pool final: vídeos avulsos (não são série) + o 1º capítulo de cada série
+    const seriesFirstEpisodes = Object.values(seriesFirstEpisodeMap);
+    const nonSeriesVideos = allVideos.filter(v => v.category !== 'series' && v.imageUrl);
+    const pool = [...nonSeriesVideos, ...seriesFirstEpisodes];
+
     if (pool.length === 0) {
         alert('Cadastre alguns vídeos primeiro para poder usar o sorteio.');
         return;

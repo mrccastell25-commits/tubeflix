@@ -652,6 +652,47 @@ function setupEventListeners() {
         navMobileBackdrop.addEventListener('click', closeMobileNav);
     }
 
+    // Arrastar para rolar o menu no desktop
+    if (navLinksList) {
+        let navDragActive = false;
+        let navDragStartX = 0;
+        let navScrollStart = 0;
+        let navDidDrag = false;
+
+        navLinksList.addEventListener('mousedown', (e) => {
+            if (navLinksList.classList.contains('open')) return;
+            if (e.button !== 0) return;
+            navDragActive = true;
+            navDidDrag = false;
+            navDragStartX = e.pageX;
+            navScrollStart = navLinksList.scrollLeft;
+            navLinksList.classList.add('dragging');
+            e.preventDefault();
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (!navDragActive) return;
+            const dx = e.pageX - navDragStartX;
+            if (Math.abs(dx) > 4) navDidDrag = true;
+            navLinksList.scrollLeft = navScrollStart - dx;
+        });
+        document.addEventListener('mouseup', () => {
+            if (!navDragActive) return;
+            navDragActive = false;
+            navLinksList.classList.remove('dragging');
+        });
+        document.addEventListener('mouseleave', () => {
+            navDragActive = false;
+            navLinksList.classList.remove('dragging');
+        });
+        // Impede o clique nos itens se o usuário estava arrastando
+        navLinksList.addEventListener('click', (e) => {
+            if (navDidDrag) {
+                navDidDrag = false;
+                e.stopImmediatePropagation();
+            }
+        }, true);
+    }
+
     // Alterna a exibição dos campos de ordenação de série e de categoria de exibição conforme a categoria
     if (newCategorySelect) {
         newCategorySelect.addEventListener('change', () => {

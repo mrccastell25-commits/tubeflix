@@ -886,7 +886,24 @@ function setupEventListeners() {
     }
     if (btnRandomPickAgain) {
         btnRandomPickAgain.addEventListener('click', () => {
-            const pool = allVideos.filter(v => v.imageUrl);
+            const seenSeries2 = new Set();
+            const pool = allVideos.filter(v => {
+                if (!v.imageUrl) return false;
+                if (v.category === 'series' && v.seriesName) {
+                    const key = v.seriesName.trim().toLowerCase();
+                    if (seenSeries2.has(key)) return false;
+                    const siblings = allVideos.filter(s =>
+                        s.category === 'series' &&
+                        s.seriesName &&
+                        s.seriesName.trim().toLowerCase() === key
+                    );
+                    const minOrder = Math.min(...siblings.map(s => s.episodeOrder != null ? s.episodeOrder : Infinity));
+                    const myOrder = v.episodeOrder != null ? v.episodeOrder : Infinity;
+                    if (myOrder !== minOrder) return false;
+                    seenSeries2.add(key);
+                }
+                return true;
+            });
             spinRandomPickDrum(pool);
         });
     }
@@ -2178,9 +2195,10 @@ function loadPlayerForVideo(video) {
         genericContainer.innerHTML = `<iframe src="${video.embedUrl}?autoplay=1" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
     } else {
         // Link genérico de outro site — muitos sites bloqueiam incorporação via X-Frame-Options.
-        // Tentamos exibir no iframe; se carregar com erro (connection refused / bloqueado),
-        // abrimos automaticamente o site original em nova aba e mostramos aviso ao usuário.
+        // Para categorias fullEmbed: se bloqueado, abre o site original em nova aba silenciosamente
+        // (sem mensagem de erro). Para demais categorias: exibe aviso ao usuário.
         const iframeId = 'generic-site-iframe';
+        const isFullEmbedVideo = isCategoryFullEmbed(video);
         genericContainer.innerHTML = `<iframe id="${iframeId}" src="${video.embedUrl}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
 
         const iframeEl = document.getElementById(iframeId);
@@ -2188,27 +2206,36 @@ function loadPlayerForVideo(video) {
             // Timeout: se o iframe não disparar 'load' em 8s, assume bloqueio e redireciona
             const redirectTimer = setTimeout(() => {
                 window.open(video.embedUrl, '_blank', 'noopener');
-                showToast('Este site não permite incorporação. Abrindo no site original...', { duration: 4000 });
+                if (!isFullEmbedVideo) {
+                    showToast('Este site não permite incorporação. Abrindo no site original...', { duration: 4000 });
+                } else {
+                    closePlayerModal();
+                }
             }, 8000);
 
             iframeEl.addEventListener('load', () => {
-                // 'load' disparou — pode ter carregado ou retornado página de erro do próprio site.
-                // Tentamos verificar se o conteúdo está acessível; se der SecurityError, está bloqueado.
                 clearTimeout(redirectTimer);
                 try {
-                    // Se o site bloqueou via X-Frame-Options, acessar contentDocument lança exceção
                     const doc = iframeEl.contentDocument || iframeEl.contentWindow?.document;
                     if (!doc || doc.body === null) throw new Error('blocked');
                 } catch(e) {
                     window.open(video.embedUrl, '_blank', 'noopener');
-                    showToast('Este site não permite incorporação. Abrindo no site original...', { duration: 4000 });
+                    if (!isFullEmbedVideo) {
+                        showToast('Este site não permite incorporação. Abrindo no site original...', { duration: 4000 });
+                    } else {
+                        closePlayerModal();
+                    }
                 }
             });
 
             iframeEl.addEventListener('error', () => {
                 clearTimeout(redirectTimer);
                 window.open(video.embedUrl, '_blank', 'noopener');
-                showToast('Não foi possível incorporar este site. Abrindo no site original...', { duration: 4000 });
+                if (!isFullEmbedVideo) {
+                    showToast('Não foi possível incorporar este site. Abrindo no site original...', { duration: 4000 });
+                } else {
+                    closePlayerModal();
+                }
             });
         }
     }
@@ -2652,7 +2679,24 @@ function resumeBgMusic() {
 
 // Chiado suave de estática analógica — volume baixo, filtrado
 function initRetroTV() {
-    const pool = allVideos.filter(v => v.imageUrl || v.videoId);
+    const seenSeriesTV = new Set();
+    const pool = allVideos.filter(v => {
+        if (!v.imageUrl && !v.videoId) return false;
+        if (v.category === 'series' && v.seriesName) {
+            const key = v.seriesName.trim().toLowerCase();
+            if (seenSeriesTV.has(key)) return false;
+            const siblings = allVideos.filter(s =>
+                s.category === 'series' &&
+                s.seriesName &&
+                s.seriesName.trim().toLowerCase() === key
+            );
+            const minOrder = Math.min(...siblings.map(s => s.episodeOrder != null ? s.episodeOrder : Infinity));
+            const myOrder = v.episodeOrder != null ? v.episodeOrder : Infinity;
+            if (myOrder !== minOrder) return false;
+            seenSeriesTV.add(key);
+        }
+        return true;
+    });
     if (!pool.length) return;
 
     for (let i = pool.length - 1; i > 0; i--) {
@@ -2674,8 +2718,8 @@ function initRetroTV() {
     const btnChUp    = document.getElementById('tv-btn-ch-up');
     const btnChDn    = document.getElementById('tv-btn-ch-dn');
     const wrapper    = document.getElementById('retro-tv-wrapper');
-    const knob1      = document.getElementById('tv-knob-1');
-    const knob2      = document.getElementById('tv-knob-2');
+    const knob1      = document.getElementById('tv-knob');
+    const knob2      = null; // Apenas um knob no layout atual
 
     if (!screen || !pool.length) return;
 
@@ -2768,7 +2812,7 @@ function initRetroTV() {
     });
 
     btnPower?.addEventListener('click', (e) => { e.stopPropagation(); tvOn ? powerOff() : powerOn(); });
-    btnChUp?.addEventListener('click',  (e) => { e.stopPropagation(); /* CH▲ só visual — decorativo */ });
+    btnChUp?.addEventListener('click',  (e) => { e.stopPropagation(); nextChannel(-1); });
     btnChDn?.addEventListener('click',  (e) => { e.stopPropagation(); nextChannel(1); });
 
     loadChannel(currentIndex);
@@ -2984,7 +3028,26 @@ let randomPickWinnerVideo = null;
 let randomPickSpinTimeout = null;
 
 function openRandomPickModal() {
-    const pool = allVideos.filter(v => v.imageUrl);
+    // Exclui capítulos internos de séries — inclui apenas o primeiro episódio de cada série
+    const seenSeries = new Set();
+    const pool = allVideos.filter(v => {
+        if (!v.imageUrl) return false;
+        if (v.category === 'series' && v.seriesName) {
+            const key = v.seriesName.trim().toLowerCase();
+            if (seenSeries.has(key)) return false;
+            // Verifica se este é o primeiro episódio da série
+            const siblings = allVideos.filter(s =>
+                s.category === 'series' &&
+                s.seriesName &&
+                s.seriesName.trim().toLowerCase() === key
+            );
+            const minOrder = Math.min(...siblings.map(s => s.episodeOrder != null ? s.episodeOrder : Infinity));
+            const myOrder = v.episodeOrder != null ? v.episodeOrder : Infinity;
+            if (myOrder !== minOrder) return false;
+            seenSeries.add(key);
+        }
+        return true;
+    });
     if (pool.length === 0) {
         alert('Cadastre alguns vídeos primeiro para poder usar o sorteio.');
         return;

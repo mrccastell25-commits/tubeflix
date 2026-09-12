@@ -2125,6 +2125,10 @@ window.onYouTubeIframeAPIReady = function() {
         pendingAutoplayVideoId = null;
         createOrLoadYoutubePlayer(videoId);
     }
+    // Se havia uma música de fundo pendente (URL carregada do Firebase antes da API ficar pronta)
+    if (bgMusicVideoId && !bgMusicPlayer) {
+        initBgMusicPlayer();
+    }
 };
 
 // Cria o player do YouTube (via API oficial, necessária para detectar o fim do vídeo) ou reaproveita
@@ -2486,70 +2490,107 @@ function cancelNextEpisodeCountdown() {
 }
 
 // Abrir Vídeo no Modal
-// ===== MÚSICA DE FUNDO =====
+// ===== MÚSICA DE FUNDO (YouTube IFrame) =====
 // Estado: 'playing' | 'muted' | 'off'
-// 'off'    → sem URL configurada, botão oculto
-// 'playing'→ tocando, ícone volume-2
-// 'muted'  → o usuário mutou, ícone volume-x
 let bgMusicState = 'off';
-let bgMusicCurrentUrl = null;
+let bgMusicVideoId = null;   // ID do vídeo YouTube atual
+let bgMusicPlayer = null;    // Instância YT.Player invisível
+let bgMusicReady = false;    // true quando o player já passou pelo onReady
 
+// Extrai o videoId de qualquer link YouTube (reutiliza a função já existente no projeto)
+function getBgMusicVideoId(url) {
+    if (!url) return null;
+    return extractYouTubeId(url.trim()) || null;
+}
+
+// Chamada quando o Firebase atualiza backgroundMusicUrl
 function applyBackgroundMusic(url) {
-    const audio = document.getElementById('bg-music-player');
-    const btn   = document.getElementById('btn-bg-music-mute');
-    if (!audio || !btn) return;
+    const btn = document.getElementById('btn-bg-music-mute');
+    const newId = getBgMusicVideoId(url);
 
-    if (!url) {
-        // Sem música: para tudo e esconde o botão
-        audio.pause();
-        audio.src = '';
+    if (!newId) {
+        // Sem música configurada: para e esconde o botão
+        if (bgMusicPlayer && bgMusicReady) {
+            try { bgMusicPlayer.stopVideo(); } catch(e) {}
+        }
         bgMusicState = 'off';
-        bgMusicCurrentUrl = null;
-        btn.classList.add('hidden');
+        bgMusicVideoId = null;
+        if (btn) btn.classList.add('hidden');
         return;
     }
 
-    btn.classList.remove('hidden');
+    if (btn) btn.classList.remove('hidden');
 
-    // Só recarrega o áudio se a URL mudou
-    if (url !== bgMusicCurrentUrl) {
-        bgMusicCurrentUrl = url;
-        audio.src = url;
-        audio.load();
-        // Respeita se o usuário já tinha mutado antes da URL ser atualizada
-        if (bgMusicState !== 'muted') {
-            bgMusicState = 'playing';
-        }
-    }
+    // Se a URL não mudou, não recria o player
+    if (newId === bgMusicVideoId) return;
+    bgMusicVideoId = newId;
 
+    // Respeita mute anterior
+    if (bgMusicState !== 'muted') bgMusicState = 'playing';
     updateBgMusicIcon();
 
-    // Tenta tocar (pode ser bloqueado pelo browser até o primeiro gesto do usuário)
-    if (bgMusicState === 'playing') {
-        const playPromise = audio.play();
-        if (playPromise) {
-            playPromise.catch(() => {
-                // Autoplay bloqueado: aguarda o primeiro clique na página para iniciar
-                const startOnInteraction = () => {
-                    if (bgMusicState === 'playing') audio.play().catch(() => {});
-                    document.removeEventListener('click', startOnInteraction);
-                };
-                document.addEventListener('click', startOnInteraction);
-            });
+    if (bgMusicPlayer && bgMusicReady) {
+        // Player já existe: só troca o vídeo
+        try { bgMusicPlayer.loadVideoById(bgMusicVideoId); } catch(e) {}
+        if (bgMusicState !== 'playing') {
+            try { bgMusicPlayer.pauseVideo(); } catch(e) {}
         }
+    } else {
+        // Cria o player invisível (pode ocorrer antes ou depois da API carregar)
+        initBgMusicPlayer();
     }
 }
 
+function initBgMusicPlayer() {
+    if (typeof YT === 'undefined' || !YT.Player) {
+        // API ainda não carregou; onYouTubeIframeAPIReady vai chamar initBgMusicPlayer depois
+        return;
+    }
+    if (!bgMusicVideoId) return;
+
+    bgMusicReady = false;
+    bgMusicPlayer = new YT.Player('bg-music-yt-placeholder', {
+        videoId: bgMusicVideoId,
+        playerVars: {
+            autoplay: 1,
+            loop: 1,
+            playlist: bgMusicVideoId, // necessário para loop funcionar
+            controls: 0,
+            disablekb: 1,
+            fs: 0,
+            rel: 0,
+            iv_load_policy: 3,
+            modestbranding: 1
+        },
+        events: {
+            onReady: (e) => {
+                bgMusicReady = true;
+                e.target.setVolume(40);
+                if (bgMusicState === 'playing') {
+                    e.target.playVideo();
+                } else {
+                    e.target.pauseVideo();
+                }
+            },
+            onError: () => {
+                // Vídeo não incorporável ou erro: esconde o botão silenciosamente
+                bgMusicState = 'off';
+                const btn = document.getElementById('btn-bg-music-mute');
+                if (btn) btn.classList.add('hidden');
+            }
+        }
+    });
+}
+
 function toggleBgMusicMute() {
-    const audio = document.getElementById('bg-music-player');
-    if (!audio || bgMusicState === 'off') return;
+    if (bgMusicState === 'off' || !bgMusicPlayer || !bgMusicReady) return;
 
     if (bgMusicState === 'playing') {
-        audio.pause();
+        try { bgMusicPlayer.pauseVideo(); } catch(e) {}
         bgMusicState = 'muted';
     } else {
+        try { bgMusicPlayer.playVideo(); } catch(e) {}
         bgMusicState = 'playing';
-        audio.play().catch(() => {});
     }
     updateBgMusicIcon();
 }
@@ -2557,22 +2598,23 @@ function toggleBgMusicMute() {
 function updateBgMusicIcon() {
     const icon = document.getElementById('bg-music-icon');
     if (!icon) return;
-    // Troca o atributo data-lucide e recria o ícone SVG
     icon.setAttribute('data-lucide', bgMusicState === 'muted' ? 'volume-x' : 'volume-2');
     lucide.createIcons({ nodes: [icon] });
 }
 
-// Pausa a música quando o player de vídeo abre, retoma quando fecha
+// Chamados ao abrir/fechar o player de vídeo
 function pauseBgMusic() {
-    const audio = document.getElementById('bg-music-player');
-    if (audio && bgMusicState === 'playing') audio.pause();
+    if (bgMusicPlayer && bgMusicReady && bgMusicState === 'playing') {
+        try { bgMusicPlayer.pauseVideo(); } catch(e) {}
+    }
 }
 
 function resumeBgMusic() {
-    const audio = document.getElementById('bg-music-player');
-    if (audio && bgMusicState === 'playing') audio.play().catch(() => {});
+    if (bgMusicPlayer && bgMusicReady && bgMusicState === 'playing') {
+        try { bgMusicPlayer.playVideo(); } catch(e) {}
+    }
 }
-// ===========================
+// ============================================
 
 function openPlayerModal(video) {
     pauseBgMusic(); // Para a música de fundo enquanto o vídeo toca

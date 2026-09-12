@@ -484,12 +484,12 @@
 
             <!-- Painel de Música de Fundo -->
             <div id="bg-music-panel" class="category-labels-panel hidden">
-                <p class="category-labels-hint">Cole o link direto de um arquivo MP3 para tocar como trilha sonora enquanto o usuário navega no site. A música pausa automaticamente quando um vídeo é aberto e retoma ao fechar.</p>
+                <p class="category-labels-hint">Cole o link de um vídeo do YouTube (pode ser uma playlist de músicas, lo-fi, trilha sonora, etc.) para tocar em segundo plano enquanto o usuário navega. A música pausa automaticamente quando um vídeo é aberto e retoma ao fechar.</p>
                 <div class="category-labels-grid" style="grid-template-columns: 1fr;">
                     <div class="form-group">
-                        <label for="bg-music-url">URL do arquivo MP3</label>
-                        <input type="url" id="bg-music-url" class="form-control" placeholder="https://exemplo.com/musica.mp3">
-                        <span class="input-hint">Use um link público direto para o arquivo .mp3. Links do Google Drive, Dropbox com <code>?dl=1</code> ou hospedagem própria funcionam bem.</span>
+                        <label for="bg-music-url">Link do YouTube</label>
+                        <input type="url" id="bg-music-url" class="form-control" placeholder="https://www.youtube.com/watch?v=...">
+                        <span class="input-hint">Funciona com qualquer link do YouTube: vídeo normal, playlist ou música. O player fica invisível — só o áudio toca.</span>
                     </div>
                 </div>
                 <div class="category-labels-actions">
@@ -713,8 +713,10 @@
         </div>
     </footer>
 
-    <!-- Player de música de fundo (controlado via JS) -->
-    <audio id="bg-music-player" loop preload="none" style="display:none;"></audio>
+    <!-- Player invisível de música de fundo (YouTube IFrame API, controlado via JS) -->
+    <div id="bg-music-yt-container" style="position:fixed;width:1px;height:1px;bottom:0;left:0;opacity:0;pointer-events:none;z-index:-1;">
+        <div id="bg-music-yt-placeholder"></div>
+    </div>
 
     <!-- Aplicação JavaScript -->
     <script src="app.js"></script>

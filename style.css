@@ -272,28 +272,6 @@ body {
     border-color: var(--netflix-red);
 }
 
-/* Botão de mute da música de fundo na navbar */
-.btn-bg-music-mute {
-    background: transparent;
-    border: none;
-    color: var(--text-muted);
-    padding: 6px;
-    border-radius: 50%;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: color var(--transition-fast), transform 0.15s ease;
-}
-.btn-bg-music-mute:hover {
-    color: var(--text-color);
-    transform: scale(1.15);
-}
-.btn-bg-music-mute svg {
-    width: 20px;
-    height: 20px;
-}
-
 .profile-avatar {
     width: 32px;
     height: 32px;

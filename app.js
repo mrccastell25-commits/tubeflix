@@ -1290,6 +1290,7 @@ function fetchVideos() {
         setTimeout(() => {
             firebaseHasResponded = true;
             filterAndRenderRows();
+            initRetroTV(); // Inicia a mini TV retrô no hero com os vídeos carregados
             if (!modalAdmin.classList.contains('hidden')) {
                 renderAdminList();
             }
@@ -2176,9 +2177,40 @@ function loadPlayerForVideo(video) {
     } else if (sourceType === 'vimeo') {
         genericContainer.innerHTML = `<iframe src="${video.embedUrl}?autoplay=1" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
     } else {
-        // Link genérico de outro site — nem todo site permite ser incorporado (embutido) em um iframe;
-        // por isso o link "Assistir no site original" fica sempre visível para esses casos.
-        genericContainer.innerHTML = `<iframe src="${video.embedUrl}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
+        // Link genérico de outro site — muitos sites bloqueiam incorporação via X-Frame-Options.
+        // Tentamos exibir no iframe; se carregar com erro (connection refused / bloqueado),
+        // abrimos automaticamente o site original em nova aba e mostramos aviso ao usuário.
+        const iframeId = 'generic-site-iframe';
+        genericContainer.innerHTML = `<iframe id="${iframeId}" src="${video.embedUrl}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
+
+        const iframeEl = document.getElementById(iframeId);
+        if (iframeEl) {
+            // Timeout: se o iframe não disparar 'load' em 8s, assume bloqueio e redireciona
+            const redirectTimer = setTimeout(() => {
+                window.open(video.embedUrl, '_blank', 'noopener');
+                showToast('Este site não permite incorporação. Abrindo no site original...', { duration: 4000 });
+            }, 8000);
+
+            iframeEl.addEventListener('load', () => {
+                // 'load' disparou — pode ter carregado ou retornado página de erro do próprio site.
+                // Tentamos verificar se o conteúdo está acessível; se der SecurityError, está bloqueado.
+                clearTimeout(redirectTimer);
+                try {
+                    // Se o site bloqueou via X-Frame-Options, acessar contentDocument lança exceção
+                    const doc = iframeEl.contentDocument || iframeEl.contentWindow?.document;
+                    if (!doc || doc.body === null) throw new Error('blocked');
+                } catch(e) {
+                    window.open(video.embedUrl, '_blank', 'noopener');
+                    showToast('Este site não permite incorporação. Abrindo no site original...', { duration: 4000 });
+                }
+            });
+
+            iframeEl.addEventListener('error', () => {
+                clearTimeout(redirectTimer);
+                window.open(video.embedUrl, '_blank', 'noopener');
+                showToast('Não foi possível incorporar este site. Abrindo no site original...', { duration: 4000 });
+            });
+        }
     }
 }
 
@@ -2615,6 +2647,135 @@ function resumeBgMusic() {
     }
 }
 // ============================================
+
+// ===== MINI TV RETRÔ NO HERO =====
+
+// Chiado suave de estática analógica — volume baixo, filtrado
+function initRetroTV() {
+    const pool = allVideos.filter(v => v.imageUrl || v.videoId);
+    if (!pool.length) return;
+
+    for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+
+    let currentIndex = 0;
+    let tvOn = true;
+    let autoTimer = null;
+    const CHANNEL_DURATION = 7000;
+
+    const screen     = document.getElementById('tv-screen');
+    const channelImg = document.getElementById('tv-channel-img');
+    const badge      = document.getElementById('tv-channel-badge');
+    const ticker     = document.getElementById('tv-ticker-text');
+    const canvas     = document.getElementById('tv-static-canvas');
+    const btnPower   = document.getElementById('tv-btn-power');
+    const btnChUp    = document.getElementById('tv-btn-ch-up');
+    const btnChDn    = document.getElementById('tv-btn-ch-dn');
+    const wrapper    = document.getElementById('retro-tv-wrapper');
+    const knob1      = document.getElementById('tv-knob-1');
+    const knob2      = document.getElementById('tv-knob-2');
+
+    if (!screen || !pool.length) return;
+
+    const resizeCanvas = () => {
+        canvas.width  = screen.offsetWidth  || 220;
+        canvas.height = screen.offsetHeight || 166;
+    };
+    resizeCanvas();
+
+    let staticRAF = null;
+    function drawStatic() {
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width, h = canvas.height;
+        const img = ctx.createImageData(w, h);
+        const d = img.data;
+        for (let i = 0; i < d.length; i += 4) {
+            const v = Math.random() > 0.5 ? 255 : 0;
+            d[i] = d[i+1] = d[i+2] = v;
+            d[i+3] = 190;
+        }
+        ctx.putImageData(img, 0, 0);
+        staticRAF = requestAnimationFrame(drawStatic);
+    }
+    function stopStatic() {
+        if (staticRAF) { cancelAnimationFrame(staticRAF); staticRAF = null; }
+        canvas.classList.remove('active');
+    }
+    function playStatic(duration, done) {
+        resizeCanvas();
+        canvas.classList.add('active');
+        drawStatic();
+        setTimeout(() => { stopStatic(); if (done) done(); }, duration);
+    }
+
+    function loadChannel(idx) {
+        const video = pool[idx];
+        const thumb = video.imageUrl
+            || (video.videoId ? `https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg` : '');
+        const chNum = String(idx + 1).padStart(2, '0');
+
+        // Anima os knobs
+        if (knob1) knob1.style.transform = `rotate(${idx * 53}deg)`;
+        if (knob2) knob2.style.transform = `rotate(${idx * 37 + 20}deg)`;
+
+        playStatic(320, () => {
+            if (!tvOn) return;
+            channelImg.style.backgroundImage = `url('${thumb}')`;
+            channelImg.style.opacity = '1';
+            badge.textContent = `CH ${chNum}`;
+            ticker.textContent = video.title || '';
+            ticker.style.animation = 'none';
+            void ticker.offsetWidth;
+            ticker.style.animation = '';
+        });
+    }
+
+    function powerOn() {
+        tvOn = true;
+        screen.classList.remove('off');
+        btnPower.classList.remove('off');
+        playStatic(500, () => loadChannel(currentIndex));
+        scheduleAuto();
+    }
+    function powerOff() {
+        tvOn = false;
+        screen.classList.add('off');
+        btnPower.classList.add('off');
+        channelImg.style.opacity = '0';
+        stopStatic();
+        clearTimeout(autoTimer);
+    }
+    function nextChannel(dir) {
+        if (!tvOn) return;
+        clearTimeout(autoTimer);
+        currentIndex = (currentIndex + dir + pool.length) % pool.length;
+        loadChannel(currentIndex);
+        scheduleAuto();
+    }
+    function scheduleAuto() {
+        clearTimeout(autoTimer);
+        autoTimer = setTimeout(() => nextChannel(1), CHANNEL_DURATION);
+    }
+
+    wrapper.addEventListener('click', (e) => {
+        // Ignora cliques nos botões de controle
+        if (e.target.closest('.tv-buttons-col')) return;
+        if (!tvOn) { powerOn(); return; }
+        const video = pool[currentIndex];
+        if (video) openPlayerModal(video);
+    });
+
+    btnPower?.addEventListener('click', (e) => { e.stopPropagation(); tvOn ? powerOff() : powerOn(); });
+    btnChUp?.addEventListener('click',  (e) => { e.stopPropagation(); /* CH▲ só visual — decorativo */ });
+    btnChDn?.addEventListener('click',  (e) => { e.stopPropagation(); nextChannel(1); });
+
+    loadChannel(currentIndex);
+    scheduleAuto();
+}
+
+// ===== FIM TV RETRÔ =====
 
 function openPlayerModal(video) {
     pauseBgMusic(); // Para a música de fundo enquanto o vídeo toca

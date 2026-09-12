@@ -97,6 +97,60 @@
                 </button>
             </div>
         </div>
+        <!-- Mini TV Retrô — exibida no desktop ao lado do conteúdo hero -->
+        <div class="retro-tv-wrapper" id="retro-tv-wrapper">
+            <div class="retro-tv" id="retro-tv">
+
+                <!-- Gabinete da TV -->
+                <div class="tv-cabinet">
+
+                    <!-- Tela -->
+                    <div class="tv-screen-housing">
+                        <div class="tv-screen" id="tv-screen">
+                            <!-- Chuvisco de estática (visível durante troca de canal) -->
+                            <canvas class="tv-static-canvas" id="tv-static-canvas"></canvas>
+                            <!-- Imagem do canal atual -->
+                            <div class="tv-channel-img" id="tv-channel-img"></div>
+                            <!-- Scanlines sobrepostas -->
+                            <div class="tv-scanlines"></div>
+                            <!-- Reflexo curvado -->
+                            <div class="tv-glare"></div>
+                            <!-- Indicador de canal (canto inferior) -->
+                            <div class="tv-channel-badge" id="tv-channel-badge">CH 01</div>
+                            <!-- Título do vídeo (rodapé da tela) -->
+                            <div class="tv-ticker" id="tv-ticker">
+                                <span id="tv-ticker-text"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Painel lateral de controles -->
+                    <div class="tv-controls">
+                        <div class="tv-brand">📺</div>
+                        <button class="tv-btn tv-btn-power" id="tv-btn-power" title="Power">
+                            <span>⏻</span>
+                        </button>
+                        <div class="tv-btn-group">
+                            <button class="tv-btn tv-btn-ch" id="tv-btn-ch-up" title="Canal anterior">CH▲</button>
+                            <button class="tv-btn tv-btn-ch" id="tv-btn-ch-dn" title="Próximo canal">CH▼</button>
+                        </div>
+                        <div class="tv-knob-row">
+                            <div class="tv-knob" id="tv-knob"></div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Base / suporte da TV -->
+                <div class="tv-stand">
+                    <div class="tv-stand-neck"></div>
+                    <div class="tv-stand-foot"></div>
+                </div>
+            </div>
+
+            <!-- Legenda clicável abaixo da TV -->
+            <div class="tv-caption" id="tv-caption">Clique para assistir</div>
+        </div>
         <div class="hero-gradient-bottom"></div>
     </header>
 

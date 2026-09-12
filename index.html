@@ -36,6 +36,18 @@
                 <i data-lucide="menu"></i>
             </button>
             <h1 class="logo">TUBE<span>FLIX</span></h1>
+
+            <!-- Desktop: apenas Início + botão Catálogo -->
+            <div class="nav-desktop-links" id="nav-desktop-links">
+                <span class="nav-desktop-item active" data-filter="todos">Início</span>
+                <button class="btn-catalog-popup" id="btn-catalog-popup" aria-haspopup="true" aria-expanded="false">
+                    <i data-lucide="layout-grid" style="width:15px;height:15px;"></i>
+                    Catálogo
+                    <i data-lucide="chevron-down" class="catalog-chevron" style="width:13px;height:13px;"></i>
+                </button>
+            </div>
+
+            <!-- Mobile: lista suspensa (dropdown) -->
             <ul class="nav-links" id="nav-links">
                 <li class="active" data-filter="todos">Início</li>
                 <li data-filter="filmes"><span class="cat-label" data-cat-key="filmes">Filmes</span></li>
@@ -66,6 +78,19 @@
             </div>
         </div>
     </nav>
+    <!-- Pop-up do Catálogo de Categorias (desktop) -->
+    <div class="catalog-popup-overlay hidden" id="catalog-popup-overlay"></div>
+    <div class="catalog-popup hidden" id="catalog-popup" role="dialog" aria-label="Catálogo de categorias">
+        <div class="catalog-popup-header">
+            <span class="catalog-popup-title"><i data-lucide="layout-grid" style="width:16px;height:16px;vertical-align:-3px;margin-right:6px;"></i>Catálogo</span>
+            <button class="catalog-popup-close" id="catalog-popup-close" aria-label="Fechar catálogo">
+                <i data-lucide="x" style="width:16px;height:16px;"></i>
+            </button>
+        </div>
+        <div class="catalog-popup-grid" id="catalog-popup-grid">
+            <!-- itens injetados via JS -->
+        </div>
+    </div>
     <div class="nav-mobile-backdrop" id="nav-mobile-backdrop"></div>
 
     <!-- Banner Principal / Hero Destaque -->

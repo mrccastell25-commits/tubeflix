@@ -75,7 +75,7 @@ body {
 .nav-left {
     display: flex;
     align-items: center;
-    gap: 35px;
+    gap: 28px;
 }
 
 .nav-toggle-btn {
@@ -108,24 +108,185 @@ body {
     font-weight: 600;
 }
 
-.nav-links {
+/* ── Desktop: Início + botão Catálogo ── */
+.nav-desktop-links {
     display: flex;
+    align-items: center;
     gap: 20px;
-    list-style: none;
-    overflow-x: auto;
-    overflow-y: hidden;
-    flex-wrap: nowrap;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    cursor: grab;
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 5%, black 90%, transparent 100%);
-    mask-image: linear-gradient(to right, transparent 0%, black 5%, black 90%, transparent 100%);
-    padding: 0 10px;
 }
-.nav-links::-webkit-scrollbar { display: none; }
-.nav-links.dragging { cursor: grabbing; }
+
+.nav-desktop-item {
+    font-size: 0.85rem;
+    color: #e5e5e5;
+    cursor: pointer;
+    font-weight: 400;
+    white-space: nowrap;
+    transition: color var(--transition-fast);
+}
+.nav-desktop-item:hover,
+.nav-desktop-item.active {
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+/* Botão "Catálogo" na navbar */
+.btn-catalog-popup {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-color);
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 20px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--transition-fast), border-color var(--transition-fast), transform 0.15s;
+    letter-spacing: 0.3px;
+}
+.btn-catalog-popup:hover {
+    background: rgba(255,255,255,0.15);
+    border-color: rgba(255,255,255,0.35);
+}
+.btn-catalog-popup.active {
+    background: var(--netflix-red);
+    border-color: var(--netflix-red);
+}
+.catalog-chevron {
+    transition: transform 0.25s ease;
+}
+.btn-catalog-popup.active .catalog-chevron {
+    transform: rotate(180deg);
+}
+
+/* ── Popup overlay ── */
+.catalog-popup-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 501;
+    background: transparent;
+}
+.catalog-popup-overlay.hidden { display: none; }
+
+/* ── Popup container ── */
+.catalog-popup {
+    position: fixed;
+    top: 76px;       /* logo abaixo da navbar (70px + 6px gap) */
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 502;
+    width: min(700px, 92vw);
+    background: rgba(18,18,18,0.97);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    overflow: hidden;
+    /* Animação de entrada */
+    animation: catalogPopupIn 0.2s ease;
+}
+.catalog-popup.hidden { display: none; }
+
+@keyframes catalogPopupIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.catalog-popup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.catalog-popup-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-color);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+.catalog-popup-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    padding: 4px;
+    border-radius: 50%;
+    transition: color var(--transition-fast), background var(--transition-fast);
+}
+.catalog-popup-close:hover {
+    color: var(--text-color);
+    background: rgba(255,255,255,0.1);
+}
+
+/* Grade de categorias: 5 colunas fixas */
+.catalog-popup-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    padding: 16px 20px 20px;
+    max-height: calc(5 * 58px + 4 * 8px + 8px); /* 5 linhas + gaps + padding */
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+.catalog-popup-grid::-webkit-scrollbar { width: 4px; }
+.catalog-popup-grid::-webkit-scrollbar-track { background: transparent; }
+.catalog-popup-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 2px; }
+
+/* Cada item da grade */
+.catalog-grid-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 6px;
+    border-radius: 10px;
+    cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.07);
+    background: rgba(255,255,255,0.04);
+    transition: background var(--transition-fast), border-color var(--transition-fast), transform 0.15s;
+    min-height: 54px;
+    text-align: center;
+}
+.catalog-grid-item:hover {
+    background: rgba(255,255,255,0.1);
+    border-color: rgba(255,255,255,0.2);
+    transform: translateY(-2px);
+}
+.catalog-grid-item.active {
+    background: rgba(229,9,20,0.18);
+    border-color: var(--netflix-red);
+}
+.catalog-grid-item .cat-icon {
+    font-size: 1.3rem;
+    line-height: 1;
+}
+.catalog-grid-item .cat-name {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #e0e0e0;
+    line-height: 1.2;
+    word-break: break-word;
+}
+.catalog-grid-item.active .cat-name {
+    color: #fff;
+    font-weight: 700;
+}
+
+/* ── Mobile: nav-links volta a ser dropdown puro ── */
+.nav-links {
+    display: none;   /* oculto por padrão no desktop */
+    list-style: none;
+}
 
 .nav-links li {
     font-size: 0.85rem;
@@ -134,9 +295,7 @@ body {
     font-weight: 400;
     transition: color var(--transition-fast);
     white-space: nowrap;
-    flex-shrink: 0;
 }
-
 .nav-links li:hover, .nav-links li.active {
     color: var(--text-color);
     font-weight: 600;
@@ -169,7 +328,18 @@ body {
         padding: 8px;
     }
 
+    /* Desktop: oculta no mobile */
+    .nav-desktop-links {
+        display: none;
+    }
+    .catalog-popup,
+    .catalog-popup-overlay {
+        display: none !important;
+    }
+
+    /* Mobile: mostra a lista dropdown */
     .nav-links {
+        display: flex;
         position: fixed;
         top: 70px;
         left: 0;

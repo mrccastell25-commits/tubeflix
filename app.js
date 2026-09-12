@@ -349,6 +349,10 @@ function deleteCustomCategory(key) {
 
     renderCustomCategoriesAdminList();
     filterAndRenderRows();
+    // Atualiza o popup caso esteja aberto
+    if (catalogPopupGrid && catalogPopup && !catalogPopup.classList.contains('hidden')) {
+        renderCatalogPopupGrid();
+    }
     showToast('Categoria excluída.');
 }
 
@@ -432,6 +436,12 @@ const navbar = document.getElementById('navbar');
 const navToggleBtn = document.getElementById('nav-toggle-btn');
 const navLinksList = document.getElementById('nav-links');
 const navMobileBackdrop = document.getElementById('nav-mobile-backdrop');
+const navDesktopLinks = document.getElementById('nav-desktop-links');
+const btnCatalogPopup = document.getElementById('btn-catalog-popup');
+const catalogPopup = document.getElementById('catalog-popup');
+const catalogPopupOverlay = document.getElementById('catalog-popup-overlay');
+const catalogPopupGrid = document.getElementById('catalog-popup-grid');
+const catalogPopupClose = document.getElementById('catalog-popup-close');
 const searchToggleBtn = document.getElementById('search-toggle-btn');
 const searchInput = document.getElementById('search-input');
 const searchContainer = searchToggleBtn.parentElement;
@@ -611,24 +621,49 @@ function setupEventListeners() {
         });
     }
 
-    // Filtros de Categorias no Topo (delegação de evento: funciona também para categorias
-    // personalizadas criadas pelo admin depois que a página já carregou)
+    // ── Filtros de categoria: mobile (dropdown) ──
     if (navLinksList) {
         navLinksList.addEventListener('click', (e) => {
             const clickedLi = e.target.closest('li[data-filter]');
             if (!clickedLi) return;
-
-            navLinksList.querySelectorAll('li[data-filter]').forEach(l => l.classList.remove('active'));
-            clickedLi.classList.add('active');
-            activeCategoryFilter = clickedLi.getAttribute('data-filter');
-
-            // Fecha o menu mobile, se estiver aberto
+            setActiveCategory(clickedLi.getAttribute('data-filter'));
             closeMobileNav();
+        });
+    }
 
-            filterAndRenderRows();
+    // ── Desktop: "Início" clicável ──
+    if (navDesktopLinks) {
+        navDesktopLinks.addEventListener('click', (e) => {
+            const item = e.target.closest('.nav-desktop-item[data-filter]');
+            if (!item) return;
+            setActiveCategory(item.getAttribute('data-filter'));
+            closeCatalogPopup();
+        });
+    }
 
-            // Rolar suavemente até a fileira da categoria escolhida
-            scrollToActiveCategory();
+    // ── Botão Catálogo: abre/fecha popup ──
+    if (btnCatalogPopup) {
+        btnCatalogPopup.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = catalogPopup.classList.contains('hidden');
+            if (isOpen) { openCatalogPopup(); } else { closeCatalogPopup(); }
+        });
+    }
+    if (catalogPopupClose) catalogPopupClose.addEventListener('click', closeCatalogPopup);
+    if (catalogPopupOverlay) catalogPopupOverlay.addEventListener('click', closeCatalogPopup);
+
+    // Fechar popup com Esc
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeCatalogPopup();
+    });
+
+    // ── Cliques nos itens da grade do popup ──
+    if (catalogPopupGrid) {
+        catalogPopupGrid.addEventListener('click', (e) => {
+            const item = e.target.closest('.catalog-grid-item[data-filter]');
+            if (!item) return;
+            setActiveCategory(item.getAttribute('data-filter'));
+            closeCatalogPopup();
         });
     }
 
@@ -645,47 +680,6 @@ function setupEventListeners() {
     }
     if (navMobileBackdrop) {
         navMobileBackdrop.addEventListener('click', closeMobileNav);
-    }
-
-    // Arrastar para rolar o menu no desktop
-    if (navLinksList) {
-        let navDragActive = false;
-        let navDragStartX = 0;
-        let navScrollStart = 0;
-        let navDidDrag = false;
-
-        navLinksList.addEventListener('mousedown', (e) => {
-            if (navLinksList.classList.contains('open')) return;
-            if (e.button !== 0) return;
-            navDragActive = true;
-            navDidDrag = false;
-            navDragStartX = e.pageX;
-            navScrollStart = navLinksList.scrollLeft;
-            navLinksList.classList.add('dragging');
-            e.preventDefault();
-        });
-        document.addEventListener('mousemove', (e) => {
-            if (!navDragActive) return;
-            const dx = e.pageX - navDragStartX;
-            if (Math.abs(dx) > 4) navDidDrag = true;
-            navLinksList.scrollLeft = navScrollStart - dx;
-        });
-        document.addEventListener('mouseup', () => {
-            if (!navDragActive) return;
-            navDragActive = false;
-            navLinksList.classList.remove('dragging');
-        });
-        document.addEventListener('mouseleave', () => {
-            navDragActive = false;
-            navLinksList.classList.remove('dragging');
-        });
-        // Impede o clique nos itens se o usuário estava arrastando
-        navLinksList.addEventListener('click', (e) => {
-            if (navDidDrag) {
-                navDidDrag = false;
-                e.stopImmediatePropagation();
-            }
-        }, true);
     }
 
     // Alterna a exibição dos campos de ordenação de série e de categoria de exibição conforme a categoria
@@ -1254,6 +1248,84 @@ function closeMobileNav() {
         navToggleBtn.innerHTML = `<i data-lucide="menu"></i>`;
         lucide.createIcons();
     }
+}
+
+// Define a categoria ativa e atualiza todos os indicadores visuais (mobile + desktop + popup)
+function setActiveCategory(filter) {
+    activeCategoryFilter = filter;
+
+    // Mobile: atualiza li.active no dropdown
+    if (navLinksList) {
+        navLinksList.querySelectorAll('li[data-filter]').forEach(l => l.classList.remove('active'));
+        const li = navLinksList.querySelector(`li[data-filter="${filter}"]`);
+        if (li) li.classList.add('active');
+    }
+
+    // Desktop: marca "Início" como ativo só quando filtro for 'todos'
+    if (navDesktopLinks) {
+        navDesktopLinks.querySelectorAll('.nav-desktop-item').forEach(i => i.classList.remove('active'));
+        if (filter === 'todos') {
+            const ini = navDesktopLinks.querySelector('.nav-desktop-item[data-filter="todos"]');
+            if (ini) ini.classList.add('active');
+        }
+    }
+
+    // Popup: atualiza item.active na grade
+    if (catalogPopupGrid) {
+        catalogPopupGrid.querySelectorAll('.catalog-grid-item').forEach(i => i.classList.remove('active'));
+        const gi = catalogPopupGrid.querySelector(`.catalog-grid-item[data-filter="${filter}"]`);
+        if (gi) gi.classList.add('active');
+    }
+
+    filterAndRenderRows();
+    scrollToActiveCategory();
+}
+
+// Emojis padrão por chave de categoria conhecida
+const CATEGORY_ICONS = {
+    todos: '🏠', filmes: '🎬', series: '📺', documentarios: '🎥',
+    tutoriais: '💻', destaques: '⭐'
+};
+function getCategoryIcon(key) {
+    return CATEGORY_ICONS[key] || '🎞️';
+}
+
+function openCatalogPopup() {
+    renderCatalogPopupGrid();
+    catalogPopup.classList.remove('hidden');
+    catalogPopupOverlay.classList.remove('hidden');
+    btnCatalogPopup.classList.add('active');
+    btnCatalogPopup.setAttribute('aria-expanded', 'true');
+    lucide.createIcons();
+}
+
+function closeCatalogPopup() {
+    catalogPopup.classList.add('hidden');
+    catalogPopupOverlay.classList.add('hidden');
+    btnCatalogPopup.classList.remove('active');
+    btnCatalogPopup.setAttribute('aria-expanded', 'false');
+}
+
+// Constrói a grade do popup com todas as categorias (fixas + personalizadas)
+function renderCatalogPopupGrid() {
+    if (!catalogPopupGrid) return;
+
+    const fixedCategories = [
+        { key: 'todos',         label: 'Início' },
+        { key: 'filmes',        label: document.querySelector('.cat-label[data-cat-key="filmes"]')?.textContent || 'Filmes' },
+        { key: 'series',        label: document.querySelector('.cat-label[data-cat-key="series"]')?.textContent || 'Séries' },
+        { key: 'documentarios', label: document.querySelector('.cat-label[data-cat-key="documentarios"]')?.textContent || 'Documentários' },
+        { key: 'tutoriais',     label: document.querySelector('.cat-label[data-cat-key="tutoriais"]')?.textContent || 'Tutoriais / Tech' },
+    ];
+    const customCats = getCustomCategories().map(c => ({ key: c.key, label: c.label }));
+    const allCats = [...fixedCategories, ...customCats];
+
+    catalogPopupGrid.innerHTML = allCats.map(cat => `
+        <div class="catalog-grid-item${activeCategoryFilter === cat.key ? ' active' : ''}" data-filter="${cat.key}">
+            <span class="cat-icon">${getCategoryIcon(cat.key)}</span>
+            <span class="cat-name">${escapeHtmlForCategory(cat.label)}</span>
+        </div>
+    `).join('');
 }
 
 // Mostra/oculta os campos de "Nome da Série" e "Ordem do Episódio" conforme a categoria escolhida

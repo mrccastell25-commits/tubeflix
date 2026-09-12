@@ -152,7 +152,8 @@ function listenToSharedSettings() {
             customCategories: data.customCategories || [],
             favorites: data.favorites || [],
             watchHistory: data.watchHistory || [],
-            gridDensity: data.gridDensity || '4'
+            gridDensity: data.gridDensity || '4',
+            backgroundMusicUrl: data.backgroundMusicUrl || null
         };
         myFavoriteList = sharedSettings.favorites;
 
@@ -162,6 +163,7 @@ function listenToSharedSettings() {
         applyGridDensityPreference();
         filterAndRenderRows();
         renderCustomCategoriesAdminList();
+        applyBackgroundMusic(sharedSettings.backgroundMusicUrl);
         // Se o painel admin estiver aberto no momento, atualiza a lista para refletir o novo nome
         // de categoria imediatamente (sem precisar fechar e abrir o painel de novo)
         if (modalAdmin && !modalAdmin.classList.contains('hidden')) {
@@ -811,6 +813,46 @@ function setupEventListeners() {
             showToast('Senha alterada com sucesso!');
         });
     }
+    // Painel de Música de Fundo
+    const btnEditBgMusic = document.getElementById('btn-edit-bg-music');
+    const bgMusicPanel = document.getElementById('bg-music-panel');
+    if (btnEditBgMusic && bgMusicPanel) {
+        btnEditBgMusic.addEventListener('click', () => {
+            if (categoryLabelsPanel) categoryLabelsPanel.classList.add('hidden');
+            if (passwordChangePanel) passwordChangePanel.classList.add('hidden');
+            // Preenche o campo com a URL atual (se houver)
+            const input = document.getElementById('bg-music-url');
+            if (input) input.value = sharedSettings.backgroundMusicUrl || '';
+            bgMusicPanel.classList.toggle('hidden');
+        });
+    }
+    const btnSaveBgMusic = document.getElementById('btn-save-bg-music');
+    if (btnSaveBgMusic) {
+        btnSaveBgMusic.addEventListener('click', () => {
+            const url = (document.getElementById('bg-music-url').value || '').trim();
+            if (!url) { alert('Cole o link do arquivo MP3 antes de salvar.'); return; }
+            if (useLocalStorageFallback) { warnFirebaseUnavailable(); return; }
+            settingsRef.child('backgroundMusicUrl').set(url);
+            bgMusicPanel.classList.add('hidden');
+            showToast('Música de fundo salva! Ela vai tocar para todos os visitantes.');
+        });
+    }
+    const btnRemoveBgMusic = document.getElementById('btn-remove-bg-music');
+    if (btnRemoveBgMusic) {
+        btnRemoveBgMusic.addEventListener('click', () => {
+            if (useLocalStorageFallback) { warnFirebaseUnavailable(); return; }
+            settingsRef.child('backgroundMusicUrl').remove();
+            bgMusicPanel.classList.add('hidden');
+            showToast('Música de fundo removida.');
+        });
+    }
+
+    // Botão mute/unmute da música de fundo na navbar
+    const btnMute = document.getElementById('btn-bg-music-mute');
+    if (btnMute) {
+        btnMute.addEventListener('click', () => toggleBgMusicMute());
+    }
+
     if (btnBackToList) {
         btnBackToList.addEventListener('click', () => {
             resetForm();
@@ -2444,7 +2486,96 @@ function cancelNextEpisodeCountdown() {
 }
 
 // Abrir Vídeo no Modal
+// ===== MÚSICA DE FUNDO =====
+// Estado: 'playing' | 'muted' | 'off'
+// 'off'    → sem URL configurada, botão oculto
+// 'playing'→ tocando, ícone volume-2
+// 'muted'  → o usuário mutou, ícone volume-x
+let bgMusicState = 'off';
+let bgMusicCurrentUrl = null;
+
+function applyBackgroundMusic(url) {
+    const audio = document.getElementById('bg-music-player');
+    const btn   = document.getElementById('btn-bg-music-mute');
+    if (!audio || !btn) return;
+
+    if (!url) {
+        // Sem música: para tudo e esconde o botão
+        audio.pause();
+        audio.src = '';
+        bgMusicState = 'off';
+        bgMusicCurrentUrl = null;
+        btn.classList.add('hidden');
+        return;
+    }
+
+    btn.classList.remove('hidden');
+
+    // Só recarrega o áudio se a URL mudou
+    if (url !== bgMusicCurrentUrl) {
+        bgMusicCurrentUrl = url;
+        audio.src = url;
+        audio.load();
+        // Respeita se o usuário já tinha mutado antes da URL ser atualizada
+        if (bgMusicState !== 'muted') {
+            bgMusicState = 'playing';
+        }
+    }
+
+    updateBgMusicIcon();
+
+    // Tenta tocar (pode ser bloqueado pelo browser até o primeiro gesto do usuário)
+    if (bgMusicState === 'playing') {
+        const playPromise = audio.play();
+        if (playPromise) {
+            playPromise.catch(() => {
+                // Autoplay bloqueado: aguarda o primeiro clique na página para iniciar
+                const startOnInteraction = () => {
+                    if (bgMusicState === 'playing') audio.play().catch(() => {});
+                    document.removeEventListener('click', startOnInteraction);
+                };
+                document.addEventListener('click', startOnInteraction);
+            });
+        }
+    }
+}
+
+function toggleBgMusicMute() {
+    const audio = document.getElementById('bg-music-player');
+    if (!audio || bgMusicState === 'off') return;
+
+    if (bgMusicState === 'playing') {
+        audio.pause();
+        bgMusicState = 'muted';
+    } else {
+        bgMusicState = 'playing';
+        audio.play().catch(() => {});
+    }
+    updateBgMusicIcon();
+}
+
+function updateBgMusicIcon() {
+    const icon = document.getElementById('bg-music-icon');
+    if (!icon) return;
+    // Troca o atributo data-lucide e recria o ícone SVG
+    icon.setAttribute('data-lucide', bgMusicState === 'muted' ? 'volume-x' : 'volume-2');
+    lucide.createIcons({ nodes: [icon] });
+}
+
+// Pausa a música quando o player de vídeo abre, retoma quando fecha
+function pauseBgMusic() {
+    const audio = document.getElementById('bg-music-player');
+    if (audio && bgMusicState === 'playing') audio.pause();
+}
+
+function resumeBgMusic() {
+    const audio = document.getElementById('bg-music-player');
+    if (audio && bgMusicState === 'playing') audio.play().catch(() => {});
+}
+// ===========================
+
 function openPlayerModal(video) {
+    pauseBgMusic(); // Para a música de fundo enquanto o vídeo toca
     playerModal.classList.remove('hidden');
     document.body.style.overflow = 'hidden'; // Travar rolagem do fundo
 
@@ -2538,6 +2669,7 @@ function openPlayerModal(video) {
 }
 
 function closePlayerModal() {
+    resumeBgMusic(); // Retoma a música de fundo ao fechar o vídeo
     playerModal.classList.add('hidden');
     document.body.style.overflow = 'auto'; // Destravar rolagem do fundo
 

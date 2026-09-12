@@ -53,6 +53,11 @@
                 <input type="text" id="search-input" class="search-input" placeholder="Títulos, canais ou gêneros...">
             </div>
             
+            <!-- Botão de mute da música de fundo — só aparece quando há uma música configurada -->
+            <button class="btn-bg-music-mute hidden" id="btn-bg-music-mute" title="Música de fundo">
+                <i data-lucide="volume-2" id="bg-music-icon"></i>
+            </button>
+
             <button class="admin-btn" id="btn-admin-panel" title="Painel do Administrador">
                 <i data-lucide="lock"></i>
                 <span>Painel Admin</span>
@@ -400,6 +405,10 @@
                         <i data-lucide="lock"></i>
                         <span>Senha</span>
                     </button>
+                    <button class="btn-edit-categories" id="btn-edit-bg-music" title="Música de fundo do site">
+                        <i data-lucide="music"></i>
+                        <span>Música</span>
+                    </button>
                     <button class="btn-close-admin" id="close-admin-modal">
                         Fechar
                     </button>
@@ -470,6 +479,22 @@
                 </div>
                 <div class="category-labels-actions">
                     <button type="button" id="btn-save-admin-password" class="btn-auth-submit" style="width:auto; padding: 10px 20px;">Salvar Nova Senha</button>
+                </div>
+            </div>
+
+            <!-- Painel de Música de Fundo -->
+            <div id="bg-music-panel" class="category-labels-panel hidden">
+                <p class="category-labels-hint">Cole o link direto de um arquivo MP3 para tocar como trilha sonora enquanto o usuário navega no site. A música pausa automaticamente quando um vídeo é aberto e retoma ao fechar.</p>
+                <div class="category-labels-grid" style="grid-template-columns: 1fr;">
+                    <div class="form-group">
+                        <label for="bg-music-url">URL do arquivo MP3</label>
+                        <input type="url" id="bg-music-url" class="form-control" placeholder="https://exemplo.com/musica.mp3">
+                        <span class="input-hint">Use um link público direto para o arquivo .mp3. Links do Google Drive, Dropbox com <code>?dl=1</code> ou hospedagem própria funcionam bem.</span>
+                    </div>
+                </div>
+                <div class="category-labels-actions">
+                    <button type="button" id="btn-remove-bg-music" class="btn-cancel-action">Remover Música</button>
+                    <button type="button" id="btn-save-bg-music" class="btn-auth-submit" style="width:auto; padding: 10px 20px;">Salvar Música</button>
                 </div>
             </div>
 
@@ -687,6 +712,9 @@
             </div>
         </div>
     </footer>
+
+    <!-- Player de música de fundo (controlado via JS) -->
+    <audio id="bg-music-player" loop preload="none" style="display:none;"></audio>
 
     <!-- Aplicação JavaScript -->
     <script src="app.js"></script>

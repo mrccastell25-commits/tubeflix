@@ -416,6 +416,7 @@ function getMyListVideos(videos) {
 let activeYoutubePlayer = null; // Instância do YT.Player quando a API estiver pronta
 let pendingAutoplayVideoId = null; // Guarda o vídeo a carregar caso a API do YouTube ainda não tenha carregado
 let currentPlayingVideo = null; // Vídeo atualmente aberto no player (usado para calcular o próximo capítulo)
+let tvResumeAutoChannel = null; // Callback para retomar a troca automática da TV ao fechar o player
 // Variáveis de countdown removidas (autoplay imediato — sem contagem regressiva)
 let toastHideTimeout = null;
 
@@ -1833,6 +1834,11 @@ function filterAndRenderRows() {
         );
     }
 
+    // Não re-renderiza o Hero enquanto o player modal estiver aberto.
+    // Isso evita que atualizações em tempo real do Firebase (watchHistory, etc.) 
+    // reclonem o hero-play-btn e causem eventos fantasma que abrem outro vídeo.
+    const playerIsOpen = playerModal && !playerModal.classList.contains('hidden');
+
     // Remove o CSS de pré-carregamento assim que filterAndRenderRows for chamada pela primeira vez.
     // Isso garante que o !important do preload não bloqueie a renderização em nenhum dispositivo,
     // independente do timing do Firebase ou da velocidade de carregamento.
@@ -1864,7 +1870,10 @@ function filterAndRenderRows() {
     }
 
     // Configurar Banner de Destaque (Hero Banner)
-    setupHeroBanner();
+    // Não recria o Hero enquanto o player estiver aberto — evita re-clone do botão e eventos fantasma
+    if (!playerIsOpen) {
+        setupHeroBanner();
+    }
 
     // Se houver busca ou filtro de gênero ativado, o comportamento muda (mostra grid ou oculta fileiras irrelevantes)
     const isSearching = currentSearchQuery !== '';
@@ -2881,12 +2890,20 @@ function initRetroTV() {
         autoTimer = setTimeout(() => nextChannel(1), CHANNEL_DURATION);
     }
 
+    // Expõe o agendador para o closePlayerModal poder retomar a troca automática
+    tvResumeAutoChannel = () => { if (tvOn) scheduleAuto(); };
+
     wrapper.addEventListener('click', (e) => {
         // Ignora cliques nos botões de controle
-        if (e.target.closest('.tv-buttons-col')) return;
+        if (e.target.closest('.tv-controls')) return;
+        e.stopPropagation();
         if (!tvOn) { powerOn(); return; }
+
+        // Para o timer automático e captura o canal EXATAMENTE neste momento
+        clearTimeout(autoTimer);
         const video = pool[currentIndex];
         if (video) openPlayerModal(video);
+        // A retomada do autoTimer acontece em closePlayerModal via tvResumeAutoChannel
     });
 
     btnPower?.addEventListener('click', (e) => { e.stopPropagation(); tvOn ? powerOff() : powerOn(); });
@@ -3010,6 +3027,12 @@ function closePlayerModal() {
         genericContainer.innerHTML = '';
         genericContainer.classList.add('hidden');
     }
+
+    // Retoma a troca automática de canal da TV (foi pausada ao abrir o player)
+    if (typeof tvResumeAutoChannel === 'function') tvResumeAutoChannel();
+
+    // Agora que o player fechou, re-renderiza o Hero (foi ignorado enquanto o player estava aberto)
+    setupHeroBanner();
 }
 
 // Abre a lista de capítulos de uma série, para o usuário escolher qual episódio assistir

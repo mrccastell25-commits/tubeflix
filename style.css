@@ -2217,17 +2217,28 @@ body.firebase-banner-active .hero-banner {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    max-height: calc(5 * 50px);   /* mostra até 5 itens (~50px cada); o 6º ativa scroll */
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.15) transparent;
+    padding-right: 4px;
 }
+.custom-categories-list::-webkit-scrollbar { width: 4px; }
+.custom-categories-list::-webkit-scrollbar-track { background: transparent; }
+.custom-categories-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 2px; }
 
 .custom-category-item {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto auto;   /* nome | checkbox-label | lixeira */
     align-items: center;
-    justify-content: space-between;
+    gap: 12px;
     background-color: rgba(255,255,255,0.05);
     border: 1px solid var(--border-color);
     border-radius: 6px;
     padding: 8px 12px;
     font-size: 0.85rem;
+    flex-shrink: 0;     /* impede que itens encolham dentro do scroll */
 }
 
 .btn-delete-custom-category {
@@ -3146,12 +3157,15 @@ body.firebase-banner-active .hero-banner {
     cursor: pointer;
     white-space: nowrap;
     user-select: none;
+    min-width: 120px;       /* largura fixa para alinhar todos os checkboxes na mesma coluna */
+    justify-content: flex-start;
 }
 .fullEmbed-toggle-label input[type="checkbox"] {
     accent-color: #2b6cb0;
     width: 14px;
     height: 14px;
     cursor: pointer;
+    flex-shrink: 0;
 }
 
 /* Player em modo fullEmbed: container vira coluna flex, cresce até preencher a tela */

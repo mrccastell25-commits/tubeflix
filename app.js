@@ -252,10 +252,9 @@ function renderCustomCategorySections() {
     lucide.createIcons();
 }
 
-// Insere os itens de menu de cada categoria personalizada, sempre antes de "Minha Lista"
+// Insere os itens de menu de cada categoria personalizada no final da lista
 function renderCustomCategoryNavLinks() {
     if (!navLinksList) return;
-    const favoritosLi = navLinksList.querySelector('li[data-filter="favoritos"]');
 
     getCustomCategories().forEach(cat => {
         if (navLinksList.querySelector(`li[data-filter="${cat.key}"]`)) return; // já existe
@@ -263,11 +262,7 @@ function renderCustomCategoryNavLinks() {
         const li = document.createElement('li');
         li.setAttribute('data-filter', cat.key);
         li.innerHTML = `<span class="cat-label" data-cat-key="${cat.key}">${escapeHtmlForCategory(cat.label)}</span>`;
-        if (favoritosLi) {
-            navLinksList.insertBefore(li, favoritosLi);
-        } else {
-            navLinksList.appendChild(li);
-        }
+        navLinksList.appendChild(li);
     });
 }
 
@@ -791,7 +786,7 @@ function setupEventListeners() {
             }
 
             const key = slugifyCategoryKey(name);
-            const reserved = ['todos', 'favoritos', 'filmes', 'series', 'documentarios', 'tutoriais'];
+            const reserved = ['todos', 'filmes', 'series', 'documentarios', 'tutoriais'];
             const existingCustom = getCustomCategories();
 
             if (reserved.includes(key) || existingCustom.some(c => c.key === key)) {
@@ -1214,21 +1209,18 @@ function setupEventListeners() {
 }
 
 // Rola a página até a fileira correspondente à categoria selecionada no menu.
-// "Início" vai para o topo do conteúdo; "Minha Lista" usa a fileira de destaques (reaproveitada para favoritos).
+// "Início" vai para o topo do conteúdo.
 function scrollToActiveCategory() {
-    const navbarHeight = 90; // compensa a navbar fixa no topo
+    const navbarHeight = 90;
 
     let targetSection = null;
 
     if (activeCategoryFilter === 'todos') {
         targetSection = document.querySelector('.main-container');
-    } else if (activeCategoryFilter === 'favoritos') {
-        targetSection = document.getElementById('section-destaques');
     } else {
         targetSection = document.getElementById('section-' + activeCategoryFilter);
     }
 
-    // Se a seção não existe ou está oculta (sem vídeos naquela categoria), rola para o início do conteúdo
     if (!targetSection || targetSection.classList.contains('hidden')) {
         targetSection = document.querySelector('.main-container');
     }
@@ -1867,32 +1859,14 @@ function filterAndRenderRows() {
         }
 
         // Filtro da barra lateral/superior (se categoria específica está ativa)
-        // A fileira "destaques/Populares" não é mais exibida na navegação normal — ela só aparece
-        // quando reaproveitada para mostrar "Minha Lista" (favoritos), tratado no bloco abaixo.
+        // A fileira "destaques/Populares" não é mais exibida na navegação normal.
         const isSectionVisible = 
             row.key !== 'destaques' &&
             (activeFilter === 'todos' || activeFilter === row.key) && 
             rowVideos.length > 0;
 
-        // Se o usuário filtrou a categoria "favoritos" (Minha Lista)
-        if (activeFilter === 'favoritos') {
-            if (row.key === 'destaques') {
-                // "Minha Lista" mostra primeiro os vídeos assistidos recentemente (mais recente primeiro),
-                // seguidos dos favoritados que ainda não foram assistidos
-                rowVideos = getMyListVideos(filteredVideos);
-                const favoriteSection = document.getElementById('section-destaques');
-                favoriteSection.querySelector('.row-title').textContent = "Minha Lista de Vídeos";
-                favoriteSection.classList.remove('hidden');
-                renderCarouselCards(carousel, rowVideos);
-            } else {
-                section.classList.add('hidden');
-            }
-            return;
-        } else {
-            // Volta título normal da seção destaques
-            if (row.key === 'destaques') {
-                document.getElementById('section-destaques').querySelector('.row-title').textContent = "Populares na TubeFlix";
-            }
+        if (row.key === 'destaques') {
+            document.getElementById('section-destaques').querySelector('.row-title').textContent = 'Populares na TubeFlix';
         }
 
         if (isSectionVisible) {
@@ -2016,9 +1990,9 @@ function renderCarouselCards(carouselElement, videos) {
         const wrapper = document.createElement('div');
         wrapper.className = 'video-card-wrapper';
         
-        const isFavorite = myFavoriteList.includes(video.id);
-        const favoriteIcon = isFavorite ? 'check' : 'plus';
-        const favoriteTitle = isFavorite ? 'Remover da minha lista' : 'Adicionar à minha lista';
+        const isFavorite = false; // funcionalidade de favoritos removida
+        const favoriteIcon = 'plus';
+        const favoriteTitle = '';
 
         // Match rating
         const matchVal = (100 - (video.title.length % 10)).toString();
@@ -2051,9 +2025,6 @@ function renderCarouselCards(carouselElement, videos) {
                         <div class="details-actions-left">
                             <button class="btn-card-circle btn-play-card" title="${isSeriesGroup ? 'Ver capítulos' : 'Assistir Agora'}">
                                 <i data-lucide="${isSeriesGroup ? 'list' : 'play'}" style="width: 12px; height: 12px; fill: ${isSeriesGroup ? 'none' : 'currentColor'};"></i>
-                            </button>
-                            <button class="btn-card-circle btn-favorite-card" title="${favoriteTitle}">
-                                <i data-lucide="${favoriteIcon}" style="width: 12px; height: 12px;"></i>
                             </button>
                         </div>
                         <button class="btn-card-circle btn-info-card" title="Mais Informações">
@@ -2099,12 +2070,6 @@ function renderCarouselCards(carouselElement, videos) {
         wrapper.querySelector('.btn-play-card').addEventListener('click', (e) => {
             e.stopPropagation();
             handlePrimaryAction();
-        });
-
-        // Adicionar / Remover Favoritos
-        wrapper.querySelector('.btn-favorite-card').addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleFavorite(video.id);
         });
 
         // Abrir Modal de Informações Detalhadas (para séries, mostra a lista de episódios também)
@@ -2895,9 +2860,6 @@ function openPlayerModal(video) {
         }
     }
     playerModal._navigatingEpisodes = false;
-
-    // Registra no histórico de "assistidos recentemente" (usado para popular a fileira "Minha Lista")
-    recordWatchHistory(video.id);
 
     // Mostra/oculta os botões de anterior/próximo conforme a posição do episódio na série
     updatePlayerNavButtons(video);

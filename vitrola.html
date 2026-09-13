@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jukebox — TubeFlix</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --gold:      #c8922a;
+  --gold-lt:   #e8b84b;
+  --gold-dk:   #7a5010;
+  --red-neon:  #ff3a10;
+  --blue-neon: #1a6aff;
+  --cream:     #f2dda4;
+  --dark:      #060402;
+  --font-mono: 'DM Mono', monospace;
+  --font-ser:  'Playfair Display', Georgia, serif;
+}
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: #000;
+  font-family: var(--font-ser);
+  color: var(--cream);
+}
+
+/* ══════════════════════════════════════════════
+   SPLASH
+══════════════════════════════════════════════ */
+#splash {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at 50% 55%, #180900 0%, #050200 100%);
+  transition: opacity 1s ease;
+}
+#splash.out { opacity: 0; pointer-events: none; }
+
+.sp-label {
+  font-family: var(--font-mono);
+  font-size: .65rem; letter-spacing: .45em;
+  color: var(--gold-dk); text-transform: uppercase;
+  margin-bottom: 2.8rem;
+}
+
+/* Disco vinyl CSS */
+.sp-disc-wrap {
+  position: relative; width: 180px; height: 180px;
+  margin-bottom: 3rem;
+}
+.sp-disc {
+  width: 180px; height: 180px; border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%,
+      #1a1a1a 0%, #111 14%, #0a0a0a 14.5%,
+      #181818 19%, #0c0c0c 19.5%,
+      #181818 25%, #0c0c0c 25.5%,
+      #181818 31%, #0c0c0c 31.5%,
+      #181818 37%, #0c0c0c 37.5%,
+      #181818 43%, #0c0c0c 43.5%,
+      #111 50%);
+  box-shadow: 0 0 50px rgba(0,0,0,.95), 0 0 80px rgba(255,60,20,.08);
+  animation: spin 3s linear infinite paused;
+}
+.sp-disc.go { animation-play-state: running; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.sp-disc-label {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  width: 58px; height: 58px; border-radius: 50%;
+  background: radial-gradient(circle, #c8922a 0%, #5a3a08 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: .42rem;
+  letter-spacing: .07em; color: #2a1400;
+  text-align: center; text-transform: uppercase;
+  font-weight: 500; line-height: 1.4;
+  box-shadow: 0 2px 10px rgba(0,0,0,.7);
+}
+
+/* Braço da agulha */
+.sp-arm {
+  position: absolute; top: 14px; right: 16px;
+  width: 3px; height: 70px;
+  background: linear-gradient(to bottom, #e8b84b, #7a5010);
+  border-radius: 2px; transform-origin: top center;
+  transform: rotate(-30deg);
+  transition: transform 1.4s cubic-bezier(.4,0,.2,1);
+}
+.sp-arm.down { transform: rotate(-6deg); }
+.sp-arm::after {
+  content: ''; position: absolute; bottom: -5px; left: -3px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--gold); box-shadow: 0 0 8px rgba(200,146,42,.6);
+}
+
+/* Título splash */
+.sp-title {
+  font-size: clamp(2.2rem,6vw,3.4rem); font-style: italic; font-weight: 400;
+  letter-spacing: .03em; color: var(--cream);
+  text-shadow: 0 2px 30px rgba(200,146,42,.5);
+  margin-bottom: .35rem; text-align: center;
+}
+.sp-sub {
+  font-family: var(--font-mono); font-size: .6rem;
+  letter-spacing: .35em; color: var(--gold-dk);
+  text-transform: uppercase; margin-bottom: 3.2rem; text-align: center;
+}
+
+/* Botão ligar */
+#btn-power {
+  background: none; border: none; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: .6rem;
+  outline: none;
+}
+.pwr-ring {
+  width: 76px; height: 76px; border-radius: 50%;
+  border: 2px solid var(--gold-dk);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  transition: border-color .3s, box-shadow .3s;
+}
+#btn-power:hover .pwr-ring,
+#btn-power:focus .pwr-ring {
+  border-color: var(--gold-lt);
+  box-shadow: 0 0 28px rgba(200,146,42,.45), inset 0 0 14px rgba(200,146,42,.12);
+}
+.pwr-ring::before {
+  content: ''; position: absolute; inset: 6px; border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #3d1a08, #150800);
+  box-shadow: inset 0 2px 8px rgba(0,0,0,.7), inset 0 -1px 3px rgba(255,180,60,.05);
+}
+.pwr-icon {
+  position: relative; z-index: 1;
+  width: 26px; height: 26px; stroke: var(--gold-dk); fill: none;
+  stroke-width: 2.3; stroke-linecap: round;
+  transition: stroke .3s;
+}
+#btn-power:hover .pwr-icon, #btn-power:focus .pwr-icon { stroke: var(--gold-lt); }
+.pwr-txt {
+  font-family: var(--font-mono); font-size: .58rem;
+  letter-spacing: .35em; color: var(--gold-dk); text-transform: uppercase;
+  transition: color .3s;
+}
+#btn-power:hover .pwr-txt { color: var(--gold-lt); }
+
+/* ══════════════════════════════════════════════
+   SALA PRINCIPAL — Jukebox full-screen
+══════════════════════════════════════════════ */
+#stage {
+  display: none; position: fixed; inset: 0;
+}
+#stage.on { display: block; }
+
+/* Imagem do jukebox como fundo que cobre tudo */
+.jukebox-bg {
+  position: absolute; inset: 0;
+  background: url('jukebox.png') center center / cover no-repeat;
+  z-index: 0;
+}
+
+/* Escurecimento sutil nas extremidades para fundir com o preto da tela */
+.jukebox-bg::after {
+  content: ''; position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 90% 90% at 50% 50%,
+      transparent 55%, rgba(0,0,0,.55) 100%);
+}
+
+/* ══════════════════════════════════════════════
+   JANELA DO VÍDEO — posicionada sobre a imagem
+   
+   A janela da vitrola na foto ocupa:
+     left: ~7.8%   top: ~16.6%
+     width: ~84.1% height: ~50.2% da imagem
+   
+   Como a imagem é cover centralizada, usamos
+   um container que espelha esse aspect-ratio
+   e posiciona o iframe com essas % relativas.
+══════════════════════════════════════════════ */
+
+/* Container que mantém o aspect-ratio da imagem de fundo */
+.bg-sizer {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.bg-ratio {
+  /* aspect-ratio da imagem: 1515/1038 ≈ 1.46 */
+  aspect-ratio: 1515 / 1038;
+  width: 100%; height: 100%;
+  max-width: calc(100vh * 1515 / 1038);
+  max-height: calc(100vw * 1038 / 1515);
+  position: relative;
+  z-index: 1;
+}
+
+/* Janela onde o iframe será inserido */
+.vinyl-window {
+  position: absolute;
+  /* coordenadas calculadas da janela na foto */
+  left:   7.8%;
+  top:    16.6%;
+  width:  84.1%;
+  height: 50.2%;
+  overflow: hidden;
+  background: #020508;
+  /* brilho azulado interno igual à foto */
+  box-shadow: inset 0 0 40px rgba(20, 80, 255, .25);
+}
+
+/* Iframe da vitrola: 160% para cortar a UI do YouTube */
+.vinyl-window iframe,
+.vinyl-window > div > iframe {
+  position: absolute !important;
+  width:  165% !important;
+  height: 165% !important;
+  top:  50% !important; left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  border: none !important;
+  pointer-events: none !important;
+}
+
+/* Névoa nas bordas: funde o vídeo com o frame da foto */
+.vinyl-fog {
+  position: absolute; inset: 0; z-index: 5;
+  pointer-events: none;
+  /* Névoa radial: centro livre, bordas na cor do interior azul-escuro */
+  background: radial-gradient(
+    ellipse 62% 56% at 50% 54%,
+    transparent              0%,
+    transparent             30%,
+    rgba(2,  5,  8, .18)    44%,
+    rgba(2,  5,  8, .55)    58%,
+    rgba(2,  5,  8, .88)    72%,
+    rgba(2,  5,  8, .99)   100%
+  );
+}
+/* Stripes horizontais/verticais para esconder barras do YT */
+.vinyl-fog::after {
+  content: ''; position: absolute; inset: 0;
+  background:
+    linear-gradient(to bottom,
+      rgba(2,5,8,.98)  0%,
+      rgba(2,5,8,.65)  7%,
+      transparent      16%,
+      transparent      82%,
+      rgba(2,5,8,.65)  93%,
+      rgba(2,5,8,.98) 100%
+    ),
+    linear-gradient(to right,
+      rgba(2,5,8,.92)   0%,
+      rgba(2,5,8,.35)   8%,
+      transparent       17%,
+      transparent       83%,
+      rgba(2,5,8,.35)   92%,
+      rgba(2,5,8,.92)  100%
+    );
+}
+
+/* Reflexo de vidro sobre a janela */
+.vinyl-glass {
+  position: absolute; inset: 0; z-index: 6; pointer-events: none;
+  background:
+    linear-gradient(128deg,
+      rgba(255,255,255,.055) 0%,
+      rgba(255,255,255,.018) 30%,
+      transparent 55%),
+    radial-gradient(ellipse 80% 25% at 50% 0%,
+      rgba(255,255,255,.04) 0%, transparent 100%);
+  border-radius: 1px;
+}
+
+/* Luz azul no topo (espelha o led azul da foto) */
+.vinyl-led {
+  position: absolute; top: 0; left: 5%; right: 5%; height: 3px; z-index: 7;
+  background: linear-gradient(to right,
+    transparent, rgba(40,120,255,.7) 20%, rgba(80,160,255,.9) 50%,
+    rgba(40,120,255,.7) 80%, transparent);
+  filter: blur(2px);
+  pointer-events: none;
+}
+
+/* ══════════════════════════════════════════════
+   PLAYER DE ÁUDIO (invisível — só o som)
+══════════════════════════════════════════════ */
+#audio-player-wrap {
+  position: fixed; bottom: 0; right: 0;
+  width: 1px; height: 1px; opacity: 0;
+  pointer-events: none; z-index: -1;
+  overflow: hidden;
+}
+
+/* ══════════════════════════════════════════════
+   CONTROLES — flutuantes, discretos, no canto
+══════════════════════════════════════════════ */
+.controls {
+  position: absolute; z-index: 20;
+  /* abaixo da janela, centralizado horizontalmente */
+  left: 50%; bottom: 6%;
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 1.6rem;
+}
+
+.ctrl {
+  width: 52px; height: 52px; border-radius: 50%;
+  border: none; cursor: pointer; outline: none;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 40% 35%, rgba(60,25,5,.85), rgba(10,5,0,.92));
+  border: 1.5px solid var(--gold-dk);
+  box-shadow:
+    0 4px 20px rgba(0,0,0,.7),
+    inset 0 1px 0 rgba(255,180,60,.08);
+  transition: border-color .25s, box-shadow .25s, transform .12s;
+  color: var(--gold-dk);
+}
+.ctrl svg { width: 18px; height: 18px; fill: currentColor; }
+.ctrl:hover, .ctrl:focus {
+  border-color: var(--gold-lt);
+  color: var(--gold-lt);
+  box-shadow: 0 4px 20px rgba(0,0,0,.7), 0 0 18px rgba(200,146,42,.4);
+}
+.ctrl:active { transform: scale(.92); }
+
+/* Botão próxima: levemente maior */
+.ctrl.next-btn {
+  width: 58px; height: 58px;
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+/* Fechar: vermelho discreto */
+.ctrl.close-btn { color: #a03010; border-color: #5a1a08; }
+.ctrl.close-btn:hover { color: #ff6030; border-color: #c03010; box-shadow: 0 4px 20px rgba(0,0,0,.7), 0 0 16px rgba(255,80,20,.35); }
+
+/* Info da faixa — aparece em cima dos controles */
+.now-playing {
+  position: absolute; z-index: 20;
+  left: 50%; bottom: calc(6% + 68px);
+  transform: translateX(-50%);
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.np-title {
+  font-size: .8rem; font-style: italic; font-weight: 400;
+  color: var(--cream); opacity: .85;
+  text-shadow: 0 1px 12px rgba(0,0,0,.9);
+  max-width: 60vw; overflow: hidden; text-overflow: ellipsis;
+  display: block; white-space: nowrap;
+}
+.np-tag {
+  font-family: var(--font-mono); font-size: .5rem;
+  letter-spacing: .3em; color: var(--gold-dk);
+  text-transform: uppercase; margin-bottom: .3rem; display: block;
+}
+
+/* Overlay de loading sobre a janela */
+#win-overlay {
+  position: absolute; inset: 0; z-index: 8;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(2,5,8,.85);
+  transition: opacity 1s ease;
+}
+#win-overlay.gone { opacity: 0; pointer-events: none; }
+.ov-icon { font-size: 2.2rem; filter: drop-shadow(0 0 10px rgba(200,146,42,.5)); animation: pulse 2s ease-in-out infinite; }
+.ov-txt { font-family: var(--font-mono); font-size: .52rem; letter-spacing: .3em; color: var(--gold-dk); margin-top: .8rem; text-transform: uppercase; }
+@keyframes pulse { 0%,100%{opacity:.6} 50%{opacity:1} }
+
+/* Dots de loading */
+.dots span { animation: db 1.2s infinite; opacity: 0; }
+.dots span:nth-child(1) { animation-delay: 0s; }
+.dots span:nth-child(2) { animation-delay: .4s; }
+.dots span:nth-child(3) { animation-delay: .8s; }
+@keyframes db { 0%,100%{opacity:0} 50%{opacity:1} }
+
+/* Luzes neon laterais pulsando (decorativas) */
+.neon-col {
+  position: absolute; z-index: 2;
+  top: 14%; bottom: 33%;
+  width: 5.5%;
+  pointer-events: none;
+}
+.neon-col.left  { left: 1.2%; }
+.neon-col.right { right: 1.2%; }
+.neon-col::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(to bottom, transparent 0%, rgba(255,60,10,.12) 30%, rgba(255,60,10,.20) 60%, transparent 100%);
+  animation: neon-pulse 1.8s ease-in-out infinite alternate;
+  filter: blur(4px);
+  border-radius: 50%;
+}
+@keyframes neon-pulse {
+  from { opacity: .5; }
+  to   { opacity: 1; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     SPLASH
+══════════════════════════════════════════ -->
+<div id="splash">
+  <p class="sp-label">TubeFlix · Hi-Fi Series</p>
+
+  <div class="sp-disc-wrap">
+    <div class="sp-disc" id="sp-disc">
+      <div class="sp-disc-label">LONG<br>PLAY<br>33⅓</div>
+    </div>
+    <div class="sp-arm" id="sp-arm"></div>
+  </div>
+
+  <h1 class="sp-title">Jukebox</h1>
+  <p class="sp-sub">Hi-Fi · Clipes · Shuffle</p>
+
+  <button id="btn-power" aria-label="Ligar o Jukebox">
+    <div class="pwr-ring">
+      <svg class="pwr-icon" viewBox="0 0 24 24">
+        <path d="M12 2v7"/>
+        <path d="M6.3 5.3A9 9 0 1 0 17.7 5.3"/>
+      </svg>
+    </div>
+    <span class="pwr-txt">Ligar</span>
+  </button>
+</div>
+
+<!-- ══════════════════════════════════════════
+     STAGE — Jukebox
+══════════════════════════════════════════ -->
+<div id="stage">
+
+  <!-- Fundo: foto do jukebox -->
+  <div class="jukebox-bg"></div>
+
+  <!-- Container que espelha o aspect-ratio da imagem para posicionar a janela -->
+  <div class="bg-sizer">
+    <div class="bg-ratio">
+
+      <!-- Janela da vitrola: encaixa sobre a foto -->
+      <div class="vinyl-window" id="vinyl-window">
+        <div id="yt-vitrola-wrap" style="position:absolute;inset:0;">
+          <div id="yt-vitrola-ph"></div>
+        </div>
+        <div class="vinyl-fog"></div>
+        <div class="vinyl-led"></div>
+        <div class="vinyl-glass"></div>
+        <!-- overlay de loading -->
+        <div id="win-overlay">
+          <span class="ov-icon">🎵</span>
+          <span class="ov-txt dots">Sintonizando<span>.</span><span>.</span><span>.</span></span>
+        </div>
+      </div>
+
+      <!-- Neon laterais decorativos -->
+      <div class="neon-col left"></div>
+      <div class="neon-col right"></div>
+
+    </div>
+  </div>
+
+  <!-- Player de áudio (invisível) -->
+  <div id="audio-player-wrap">
+    <div id="yt-clipe-ph"></div>
+  </div>
+
+  <!-- Info da faixa -->
+  <div class="now-playing">
+    <span class="np-tag">Tocando agora</span>
+    <span class="np-title" id="np-title">—</span>
+  </div>
+
+  <!-- Controles -->
+  <div class="controls">
+    <!-- Fechar → volta ao index.html -->
+    <button class="ctrl close-btn" id="btn-close" title="Fechar" aria-label="Fechar">
+      <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/></svg>
+    </button>
+
+    <!-- Próxima -->
+    <button class="ctrl next-btn" id="btn-next" title="Próxima música" aria-label="Próxima">
+      <svg viewBox="0 0 24 24"><path d="M5 4l10 8-10 8V4z"/><rect x="18" y="4" width="2.5" height="16" rx="1"/></svg>
+    </button>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════
+     SCRIPTS
+══════════════════════════════════════════ -->
+<script>
+/* ── Firebase ── */
+const fbCfg = {
+  apiKey:            "AIzaSyBn_IRWV1kVIWyJiJ7DUcuozUn3Se6JKvs",
+  authDomain:        "gameflix-e54bf.firebaseapp.com",
+  databaseURL:       "https://gameflix-e54bf-default-rtdb.firebaseio.com",
+  projectId:         "gameflix-e54bf",
+  storageBucket:     "gameflix-e54bf.firebasestorage.app",
+  messagingSenderId: "702917790108",
+  appId:             "1:702917790108:web:7b8933a6a8a9a4f82de059"
+};
+if (!firebase.apps.length) firebase.initializeApp(fbCfg);
+const db = firebase.database();
+
+/* ── Constantes ── */
+const VITROLA_ID     = 'KoJnlvBXiJk'; // ← troque pelo ID do vídeo da vitrola desejado
+const CLIPE_CATEGORY = 'clipes';
+
+/* ── Estado ── */
+let clips    = [];
+let idx      = 0;
+let pVitrola = null;
+let pClipe   = null;
+let ytReady  = false;
+let fbReady  = false;
+
+/* ── Helpers ── */
+const shuffle = a => {
+  const b = [...a];
+  for (let i = b.length-1; i>0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [b[i],b[j]] = [b[j],b[i]];
+  }
+  return b;
+};
+const ytId = url => {
+  if (!url) return null;
+  const m = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : (String(url).length===11 ? url : null);
+};
+
+/* ── Splash → Stage ── */
+document.getElementById('btn-power').addEventListener('click', () => {
+  const disc = document.getElementById('sp-disc');
+  const arm  = document.getElementById('sp-arm');
+  disc.classList.add('go');
+  arm.classList.add('down');
+
+  setTimeout(() => {
+    const splash = document.getElementById('splash');
+    splash.classList.add('out');
+    setTimeout(() => {
+      splash.style.display = 'none';
+      document.getElementById('stage').classList.add('on');
+      loadYT();
+      loadClipes();
+    }, 1000);
+  }, 950);
+});
+
+/* ── Fechar ── */
+document.getElementById('btn-close').addEventListener('click', () => {
+  window.location.href = 'index.html';
+});
+
+/* ── Próxima ── */
+document.getElementById('btn-next').addEventListener('click', nextClip);
+
+/* ── Firebase: busca clipes ── */
+function loadClipes() {
+  db.ref('videos').once('value').then(snap => {
+    const data = snap.val() || {};
+    const vids = Object.values(data).filter(v =>
+      v && v.category && v.category.toLowerCase() === CLIPE_CATEGORY
+    );
+    clips = shuffle(vids);
+    fbReady = true;
+    tryStart();
+  }).catch(e => console.error('Firebase:', e));
+}
+
+/* ── YouTube API ── */
+function loadYT() {
+  const s = document.createElement('script');
+  s.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(s);
+}
+
+window.onYouTubeIframeAPIReady = () => {
+  ytReady = true;
+
+  /* Player da vitrola — mudo, em loop, maior para cortar a UI */
+  pVitrola = new YT.Player('yt-vitrola-ph', {
+    videoId: VITROLA_ID,
+    width: '100%', height: '100%',
+    playerVars: {
+      autoplay: 1, mute: 1, controls: 0,
+      loop: 1, playlist: VITROLA_ID,
+      rel: 0, showinfo: 0, modestbranding: 1,
+      iv_load_policy: 3, disablekb: 1, fs: 0,
+      start: 3
+    },
+    events: { onReady: () => tryStart() }
+  });
+
+  /* Player dos clipes — invisível, só áudio */
+  pClipe = new YT.Player('yt-clipe-ph', {
+    videoId: '', width: '1', height: '1',
+    playerVars: {
+      autoplay: 0, controls: 0, rel: 0,
+      showinfo: 0, modestbranding: 1,
+      iv_load_policy: 3, disablekb: 1, fs: 0
+    },
+    events: {
+      onStateChange: e => {
+        if (e.data === YT.PlayerState.ENDED) nextClip();
+      }
+    }
+  });
+};
+
+/* ── Inicia quando YT + Firebase estão prontos ── */
+let started = false;
+function tryStart() {
+  if (started || !ytReady || !fbReady || clips.length === 0) return;
+  started = true;
+  playClip();
+}
+
+function playClip() {
+  if (!pClipe || clips.length === 0) return;
+  const v  = clips[idx];
+  const id = ytId(v.url || v.videoUrl || v.youtubeUrl || v.id || '');
+  if (!id) { nextClip(); return; }
+
+  pClipe.loadVideoById({ videoId: id });
+  pClipe.setVolume(85);
+
+  // Título
+  document.getElementById('np-title').textContent = v.title || '—';
+
+  // Esconde overlay da janela
+  const ov = document.getElementById('win-overlay');
+  if (ov) ov.classList.add('gone');
+}
+
+function nextClip() {
+  idx = (idx + 1) % clips.length;
+  playClip();
+}
+</script>
+
+</body>
+</html>

@@ -2281,78 +2281,48 @@ function loadPlayerForVideo(video) {
     } else if (sourceType === 'vimeo') {
         genericContainer.innerHTML = `<iframe src="${video.embedUrl}?autoplay=1" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
     } else {
-        // Link genérico de outro site.
-        //
-        // Detecção de X-Frame-Options client-side:
-        // Não é possível ler o header diretamente (cross-origin), mas quando um site bloqueia
-        // embedding via X-Frame-Options/CSP frame-ancestors, o browser recusa renderizar qualquer
-        // conteúdo no iframe — ele fica com offsetHeight/scrollHeight = 0 e sem subframes.
-        // Usamos isso como heurística: após o evento 'load', verificamos se o iframe tem
-        // dimensão real. Se continuar vazio após 1.5s, consideramos bloqueado.
-        //
-        // Casos:
-        //  - Site permite embed    → load dispara, iframe tem conteúdo → mantém aberto ✓
-        //  - Site bloqueia embed   → load dispara, iframe fica vazio   → abre nova aba ✓
-        //  - Servidor não responde → load não dispara, timeout de 12s  → abre nova aba ✓
-
+        // Link genérico de outro site — muitos sites bloqueiam incorporação via X-Frame-Options.
+        // Para categorias fullEmbed: se bloqueado, abre o site original em nova aba silenciosamente
+        // (sem mensagem de erro). Para demais categorias: exibe aviso ao usuário.
         const iframeId = 'generic-site-iframe';
         const isFullEmbedVideo = isCategoryFullEmbed(video);
-        genericContainer.innerHTML = `<iframe id="${iframeId}" src="${video.embedUrl}" allow="autoplay; fullscreen; picture-in-picture; clipboard-write" allowfullscreen></iframe>`;
+        genericContainer.innerHTML = `<iframe id="${iframeId}" src="${video.embedUrl}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
 
         const iframeEl = document.getElementById(iframeId);
         if (iframeEl) {
-            let handled = false;
-
-            const handleBlocked = () => {
-                if (handled) return;
-                handled = true;
+            // Timeout: se o iframe não disparar 'load' em 8s, assume bloqueio e redireciona
+            const redirectTimer = setTimeout(() => {
                 window.open(video.embedUrl, '_blank', 'noopener');
                 if (!isFullEmbedVideo) {
-                    showToast('Este site não permite incorporação. Abrindo no original...', { duration: 4000 });
+                    showToast('Este site não permite incorporação. Abrindo no site original...', { duration: 4000 });
                 } else {
                     closePlayerModal();
                 }
-            };
-
-            // Timeout de segurança: servidor não responde em 12s
-            const deadTimer = setTimeout(handleBlocked, 12000);
+            }, 8000);
 
             iframeEl.addEventListener('load', () => {
-                clearTimeout(deadTimer);
-                if (handled) return;
-
-                // Aguarda 1.5s para o browser ter chance de renderizar o conteúdo (ou deixar vazio)
-                setTimeout(() => {
-                    if (handled) return;
-                    // Se o iframe não tem altura real, o conteúdo foi bloqueado pelo browser
-                    const h = iframeEl.offsetHeight || iframeEl.clientHeight || 0;
-                    const w = iframeEl.offsetWidth  || iframeEl.clientWidth  || 0;
-                    const hasSize = h > 10 && w > 10;
-
-                    // Tenta verificar se há algum subframe ou se o document está acessível.
-                    // Sites que permitem embedding em mesmo domínio: contentWindow.length >= 0
-                    // Sites cross-origin bloqueados: a janela existe mas frames = 0 e body nulo
-                    let hasContent = hasSize;
-                    try {
-                        // Isso vai lançar SecurityError em cross-origin normal (permitido)
-                        // mas em sites bloqueados também — não podemos distinguir aqui.
-                        // Usamos apenas o tamanho como heurística principal.
-                        const win = iframeEl.contentWindow;
-                        if (win && typeof win.length === 'number') {
-                            // Se tem subframes OU tem tamanho → provavelmente carregou
-                            hasContent = hasSize || win.length > 0;
-                        }
-                    } catch (_) {
-                        // SecurityError cross-origin: confia só no tamanho
-                        hasContent = hasSize;
-                    }
-
-                    if (!hasContent) {
-                        handleBlocked();
+                clearTimeout(redirectTimer);
+                try {
+                    const doc = iframeEl.contentDocument || iframeEl.contentWindow?.document;
+                    if (!doc || doc.body === null) throw new Error('blocked');
+                } catch(e) {
+                    window.open(video.embedUrl, '_blank', 'noopener');
+                    if (!isFullEmbedVideo) {
+                        showToast('Este site não permite incorporação. Abrindo no site original...', { duration: 4000 });
                     } else {
-                        handled = true; // Carregou com sucesso — não faz nada
+                        closePlayerModal();
                     }
-                }, 1500);
+                }
+            });
+
+            iframeEl.addEventListener('error', () => {
+                clearTimeout(redirectTimer);
+                window.open(video.embedUrl, '_blank', 'noopener');
+                if (!isFullEmbedVideo) {
+                    showToast('Não foi possível incorporar este site. Abrindo no site original...', { duration: 4000 });
+                } else {
+                    closePlayerModal();
+                }
             });
         }
     }
@@ -2795,16 +2765,7 @@ function resumeBgMusic() {
 // ===== MINI TV RETRÔ NO HERO =====
 
 // Chiado suave de estática analógica — volume baixo, filtrado
-// Instância anterior da TV (destruída antes de criar nova)
-let _retroTVDestroy = null;
-
 function initRetroTV() {
-    // Destrói a instância anterior se existir — impede acúmulo de listeners e timers
-    if (typeof _retroTVDestroy === 'function') {
-        _retroTVDestroy();
-        _retroTVDestroy = null;
-    }
-
     const seenSeriesTV = new Set();
     const pool = allVideos.filter(v => {
         if (!v.imageUrl && !v.videoId) return false;
@@ -2929,37 +2890,28 @@ function initRetroTV() {
         autoTimer = setTimeout(() => nextChannel(1), CHANNEL_DURATION);
     }
 
-    // AbortController: remove todos os listeners desta instância de uma vez ao destruir
-    const tvAbort = new AbortController();
-    const tvSig = { signal: tvAbort.signal };
+    // Expõe o agendador para o closePlayerModal poder retomar a troca automática
+    tvResumeAutoChannel = () => { if (tvOn) scheduleAuto(); };
 
     wrapper.addEventListener('click', (e) => {
+        // Ignora cliques nos botões de controle
         if (e.target.closest('.tv-controls')) return;
         e.stopPropagation();
         if (!tvOn) { powerOn(); return; }
-        // Para o timer e captura o canal EXATAMENTE agora (evita race condition com autoTimer)
+
+        // Para o timer automático e captura o canal EXATAMENTE neste momento
         clearTimeout(autoTimer);
         const video = pool[currentIndex];
         if (video) openPlayerModal(video);
-        // A retomada do autoTimer ocorre em closePlayerModal via tvResumeAutoChannel
-    }, tvSig);
+        // A retomada do autoTimer acontece em closePlayerModal via tvResumeAutoChannel
+    });
 
-    btnPower?.addEventListener('click', (e) => { e.stopPropagation(); tvOn ? powerOff() : powerOn(); }, tvSig);
-    btnChUp?.addEventListener('click',  (e) => { e.stopPropagation(); nextChannel(-1); }, tvSig);
-    btnChDn?.addEventListener('click',  (e) => { e.stopPropagation(); nextChannel(1); }, tvSig);
+    btnPower?.addEventListener('click', (e) => { e.stopPropagation(); tvOn ? powerOff() : powerOn(); });
+    btnChUp?.addEventListener('click',  (e) => { e.stopPropagation(); nextChannel(-1); });
+    btnChDn?.addEventListener('click',  (e) => { e.stopPropagation(); nextChannel(1); });
 
     loadChannel(currentIndex);
     scheduleAuto();
-
-    // Expõe o agendador para closePlayerModal retomar a TV após fechar o player
-    tvResumeAutoChannel = () => { if (tvOn) scheduleAuto(); };
-
-    // Registra destruição: cancela timers, remove todos os listeners via AbortController
-    _retroTVDestroy = () => {
-        clearTimeout(autoTimer);
-        tvAbort.abort();
-        tvResumeAutoChannel = null;
-    };
 }
 
 // ===== FIM TV RETRÔ =====

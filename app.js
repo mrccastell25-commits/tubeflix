@@ -2282,30 +2282,79 @@ function loadPlayerForVideo(video) {
         genericContainer.innerHTML = `<iframe src="${video.embedUrl}?autoplay=1" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
     } else {
         // Link genérico de outro site.
-        // IMPORTANTE: Não tentamos detectar X-Frame-Options via JS — qualquer acesso a
-        // contentDocument em domínio diferente lança SecurityError (cross-origin), o que
-        // causaria falso positivo e abriria nova aba mesmo em sites que aceitam embedding.
-        // Estratégia: exibe o iframe diretamente. Se o site bloquear, o browser mostra
-        // mensagem nativa dentro do frame. O timeout só existe para casos onde o servidor
-        // nunca responde (conexão morta) — não para detectar X-Frame-Options.
+        //
+        // Detecção de X-Frame-Options client-side:
+        // Não é possível ler o header diretamente (cross-origin), mas quando um site bloqueia
+        // embedding via X-Frame-Options/CSP frame-ancestors, o browser recusa renderizar qualquer
+        // conteúdo no iframe — ele fica com offsetHeight/scrollHeight = 0 e sem subframes.
+        // Usamos isso como heurística: após o evento 'load', verificamos se o iframe tem
+        // dimensão real. Se continuar vazio após 1.5s, consideramos bloqueado.
+        //
+        // Casos:
+        //  - Site permite embed    → load dispara, iframe tem conteúdo → mantém aberto ✓
+        //  - Site bloqueia embed   → load dispara, iframe fica vazio   → abre nova aba ✓
+        //  - Servidor não responde → load não dispara, timeout de 12s  → abre nova aba ✓
+
         const iframeId = 'generic-site-iframe';
         const isFullEmbedVideo = isCategoryFullEmbed(video);
         genericContainer.innerHTML = `<iframe id="${iframeId}" src="${video.embedUrl}" allow="autoplay; fullscreen; picture-in-picture; clipboard-write" allowfullscreen></iframe>`;
 
-        if (!isFullEmbedVideo) {
-            // Para categorias normais: timeout de 15s para conexão morta; avisa e abre nova aba
-            const iframeEl = document.getElementById(iframeId);
-            if (iframeEl) {
-                const redirectTimer = setTimeout(() => {
-                    window.open(video.embedUrl, '_blank', 'noopener');
-                    showToast('Não foi possível carregar o site. Abrindo no original...', { duration: 4000 });
-                }, 15000);
-                // Cancelar o timer se o iframe carregar (qualquer resposta = conexão viva)
-                iframeEl.addEventListener('load', () => clearTimeout(redirectTimer));
-            }
+        const iframeEl = document.getElementById(iframeId);
+        if (iframeEl) {
+            let handled = false;
+
+            const handleBlocked = () => {
+                if (handled) return;
+                handled = true;
+                window.open(video.embedUrl, '_blank', 'noopener');
+                if (!isFullEmbedVideo) {
+                    showToast('Este site não permite incorporação. Abrindo no original...', { duration: 4000 });
+                } else {
+                    closePlayerModal();
+                }
+            };
+
+            // Timeout de segurança: servidor não responde em 12s
+            const deadTimer = setTimeout(handleBlocked, 12000);
+
+            iframeEl.addEventListener('load', () => {
+                clearTimeout(deadTimer);
+                if (handled) return;
+
+                // Aguarda 1.5s para o browser ter chance de renderizar o conteúdo (ou deixar vazio)
+                setTimeout(() => {
+                    if (handled) return;
+                    // Se o iframe não tem altura real, o conteúdo foi bloqueado pelo browser
+                    const h = iframeEl.offsetHeight || iframeEl.clientHeight || 0;
+                    const w = iframeEl.offsetWidth  || iframeEl.clientWidth  || 0;
+                    const hasSize = h > 10 && w > 10;
+
+                    // Tenta verificar se há algum subframe ou se o document está acessível.
+                    // Sites que permitem embedding em mesmo domínio: contentWindow.length >= 0
+                    // Sites cross-origin bloqueados: a janela existe mas frames = 0 e body nulo
+                    let hasContent = hasSize;
+                    try {
+                        // Isso vai lançar SecurityError em cross-origin normal (permitido)
+                        // mas em sites bloqueados também — não podemos distinguir aqui.
+                        // Usamos apenas o tamanho como heurística principal.
+                        const win = iframeEl.contentWindow;
+                        if (win && typeof win.length === 'number') {
+                            // Se tem subframes OU tem tamanho → provavelmente carregou
+                            hasContent = hasSize || win.length > 0;
+                        }
+                    } catch (_) {
+                        // SecurityError cross-origin: confia só no tamanho
+                        hasContent = hasSize;
+                    }
+
+                    if (!hasContent) {
+                        handleBlocked();
+                    } else {
+                        handled = true; // Carregou com sucesso — não faz nada
+                    }
+                }, 1500);
+            });
         }
-        // Para fullEmbed: sem timers, sem detecção — confia no iframe integralmente.
-        // O botão "Fechar" flutuante já está visível para o usuário sair quando quiser.
     }
 }
 

@@ -196,6 +196,18 @@ function isCategoryFullEmbed(video) {
     return false;
 }
 
+function isCategoryNewTab(video) {
+    if (!video) return false;
+    const customCats = getCustomCategories();
+    const catByCategory = customCats.find(c => c.key === video.category);
+    if (catByCategory && catByCategory.newTab) return true;
+    if (video.displayCategory) {
+        const catByDisplay = customCats.find(c => c.key === video.displayCategory);
+        if (catByDisplay && catByDisplay.newTab) return true;
+    }
+    return false;
+}
+
 // Salva a lista de categorias personalizadas no Firebase. Se o Firebase estiver indisponível, a ação
 // é cancelada (nada é salvo localmente) e retorna false para o chamador tratar o cancelamento.
 function saveCustomCategories(categories) {
@@ -303,6 +315,10 @@ function renderCustomCategoriesAdminList() {
                 <input type="checkbox" class="chk-fullembed" data-key="${cat.key}" ${cat.fullEmbed ? 'checked' : ''}>
                 <span>Fullscreen</span>
             </label>
+            <label class="fullEmbed-toggle-label" title="Abre sempre em nova guia, sem tentar incorporar">
+                <input type="checkbox" class="chk-newtab" data-key="${cat.key}" ${cat.newTab ? 'checked' : ''}>
+                <span>Nova guia</span>
+            </label>
             <button type="button" class="btn-delete-custom-category" data-key="${cat.key}" title="Excluir categoria">
                 <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
             </button>
@@ -320,6 +336,18 @@ function renderCustomCategoriesAdminList() {
             );
             const saved = saveCustomCategories(updated);
             if (saved) showToast(chk.checked ? 'Modo fullscreen ativado.' : 'Modo fullscreen desativado.');
+        });
+    });
+
+    // Listener para toggle newTab em categorias existentes
+    container.querySelectorAll('.chk-newtab').forEach(chk => {
+        chk.addEventListener('change', () => {
+            const key = chk.getAttribute('data-key');
+            const updated = getCustomCategories().map(c =>
+                c.key === key ? { ...c, newTab: chk.checked } : c
+            );
+            const saved = saveCustomCategories(updated);
+            if (saved) showToast(chk.checked ? 'Nova guia ativada.' : 'Nova guia desativada.');
         });
     });
 
@@ -790,7 +818,13 @@ function setupEventListeners() {
             }
 
             const fullEmbedCheck = document.getElementById('new-custom-category-fullembed');
-            existingCustom.push({ key, label: name, fullEmbed: fullEmbedCheck ? fullEmbedCheck.checked : false });
+            const newTabCheck = document.getElementById('new-custom-category-newtab');
+            existingCustom.push({
+                key,
+                label: name,
+                fullEmbed: fullEmbedCheck ? fullEmbedCheck.checked : false,
+                newTab: newTabCheck ? newTabCheck.checked : false
+            });
             const saved = saveCustomCategories(existingCustom);
             if (!saved) return; // Firebase indisponível: já avisamos, não finge que criou a categoria
 
@@ -801,6 +835,8 @@ function setupEventListeners() {
             input.value = '';
             const fullEmbedChk = document.getElementById('new-custom-category-fullembed');
             if (fullEmbedChk) fullEmbedChk.checked = false;
+            const newTabChk = document.getElementById('new-custom-category-newtab');
+            if (newTabChk) newTabChk.checked = false;
             showToast(`Categoria "${name}" criada com sucesso!`);
         });
     }
@@ -2242,6 +2278,14 @@ window.onYouTubeIframeAPIReady = function() {
 // site) e o carrega. Vídeos cadastrados antes desse recurso não têm o campo "sourceType" salvo — como
 // todos eles vieram do YouTube e têm "videoId", assumimos 'youtube' nesse caso (compatibilidade).
 function loadPlayerForVideo(video) {
+    // Se a categoria está configurada como "Nova guia", abre direto sem tentar incorporar
+    if (isCategoryNewTab(video)) {
+        const urlToOpen = video.embedUrl || video.url;
+        if (urlToOpen) window.open(urlToOpen, '_blank', 'noopener');
+        closePlayerModal();
+        return;
+    }
+
     const sourceType = video.sourceType || (video.videoId ? 'youtube' : 'iframe');
     const ytPlaceholder = document.getElementById('youtube-player-placeholder');
     const genericContainer = document.getElementById('generic-player-container');
@@ -2282,51 +2326,46 @@ function loadPlayerForVideo(video) {
         genericContainer.innerHTML = `<iframe src="${video.embedUrl}?autoplay=1" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
     } else {
         // Link genérico de outro site — muitos sites bloqueiam incorporação via X-Frame-Options.
-        // Para categorias fullEmbed: se bloqueado, abre o site original em nova aba silenciosamente
-        // (sem mensagem de erro). Para demais categorias: exibe aviso ao usuário.
+        // Tentamos exibir no iframe; se carregar com erro (bloqueado), abrimos em nova aba.
+        // • fullEmbed: abre nova aba silenciosamente e fecha o modal (sem mensagem).
+        // • Demais categorias: abre nova aba e exibe toast de aviso.
         const iframeId = 'generic-site-iframe';
         const isFullEmbedVideo = isCategoryFullEmbed(video);
         genericContainer.innerHTML = `<iframe id="${iframeId}" src="${video.embedUrl}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
 
         const iframeEl = document.getElementById(iframeId);
         if (iframeEl) {
-            // Timeout: se o iframe não disparar 'load' em 8s, assume bloqueio e redireciona
-            const redirectTimer = setTimeout(() => {
+            const handleBlocked = () => {
                 window.open(video.embedUrl, '_blank', 'noopener');
-                if (!isFullEmbedVideo) {
-                    showToast('Este site não permite incorporação. Abrindo no site original...', { duration: 4000 });
-                } else {
+                if (isFullEmbedVideo) {
                     closePlayerModal();
+                } else {
+                    showToast('Este site não permite incorporação. Abrindo no site original...', { duration: 4000 });
                 }
-            }, 8000);
+            };
+
+            // Timeout: se o iframe não disparar 'load' em 8s, assume bloqueio e redireciona
+            const redirectTimer = setTimeout(handleBlocked, 8000);
 
             iframeEl.addEventListener('load', () => {
                 clearTimeout(redirectTimer);
                 try {
+                    // Se o site bloqueou via X-Frame-Options, acessar contentDocument lança exceção
                     const doc = iframeEl.contentDocument || iframeEl.contentWindow?.document;
                     if (!doc || doc.body === null) throw new Error('blocked');
                 } catch(e) {
-                    window.open(video.embedUrl, '_blank', 'noopener');
-                    if (!isFullEmbedVideo) {
-                        showToast('Este site não permite incorporação. Abrindo no site original...', { duration: 4000 });
-                    } else {
-                        closePlayerModal();
-                    }
+                    handleBlocked();
                 }
             });
 
             iframeEl.addEventListener('error', () => {
                 clearTimeout(redirectTimer);
-                window.open(video.embedUrl, '_blank', 'noopener');
-                if (!isFullEmbedVideo) {
-                    showToast('Não foi possível incorporar este site. Abrindo no site original...', { duration: 4000 });
-                } else {
-                    closePlayerModal();
-                }
+                handleBlocked();
             });
         }
     }
 }
+
 
 function createOrLoadYoutubePlayer(videoId) {
     if (typeof YT === 'undefined' || !YT.Player) {
@@ -2765,7 +2804,16 @@ function resumeBgMusic() {
 // ===== MINI TV RETRÔ NO HERO =====
 
 // Chiado suave de estática analógica — volume baixo, filtrado
+// Instância anterior da TV (destruída antes de criar nova)
+let _retroTVDestroy = null;
+
 function initRetroTV() {
+    // Destrói a instância anterior se existir — impede acúmulo de listeners e timers
+    if (typeof _retroTVDestroy === 'function') {
+        _retroTVDestroy();
+        _retroTVDestroy = null;
+    }
+
     const seenSeriesTV = new Set();
     const pool = allVideos.filter(v => {
         if (!v.imageUrl && !v.videoId) return false;
@@ -2890,28 +2938,37 @@ function initRetroTV() {
         autoTimer = setTimeout(() => nextChannel(1), CHANNEL_DURATION);
     }
 
-    // Expõe o agendador para o closePlayerModal poder retomar a troca automática
-    tvResumeAutoChannel = () => { if (tvOn) scheduleAuto(); };
+    // AbortController: remove todos os listeners desta instância de uma vez ao destruir
+    const tvAbort = new AbortController();
+    const tvSig = { signal: tvAbort.signal };
 
     wrapper.addEventListener('click', (e) => {
-        // Ignora cliques nos botões de controle
         if (e.target.closest('.tv-controls')) return;
         e.stopPropagation();
         if (!tvOn) { powerOn(); return; }
-
-        // Para o timer automático e captura o canal EXATAMENTE neste momento
+        // Para o timer e captura o canal EXATAMENTE agora (evita race condition com autoTimer)
         clearTimeout(autoTimer);
         const video = pool[currentIndex];
         if (video) openPlayerModal(video);
-        // A retomada do autoTimer acontece em closePlayerModal via tvResumeAutoChannel
-    });
+        // A retomada do autoTimer ocorre em closePlayerModal via tvResumeAutoChannel
+    }, tvSig);
 
-    btnPower?.addEventListener('click', (e) => { e.stopPropagation(); tvOn ? powerOff() : powerOn(); });
-    btnChUp?.addEventListener('click',  (e) => { e.stopPropagation(); nextChannel(-1); });
-    btnChDn?.addEventListener('click',  (e) => { e.stopPropagation(); nextChannel(1); });
+    btnPower?.addEventListener('click', (e) => { e.stopPropagation(); tvOn ? powerOff() : powerOn(); }, tvSig);
+    btnChUp?.addEventListener('click',  (e) => { e.stopPropagation(); nextChannel(-1); }, tvSig);
+    btnChDn?.addEventListener('click',  (e) => { e.stopPropagation(); nextChannel(1); }, tvSig);
 
     loadChannel(currentIndex);
     scheduleAuto();
+
+    // Expõe o agendador para closePlayerModal retomar a TV após fechar o player
+    tvResumeAutoChannel = () => { if (tvOn) scheduleAuto(); };
+
+    // Registra destruição: cancela timers, remove todos os listeners via AbortController
+    _retroTVDestroy = () => {
+        clearTimeout(autoTimer);
+        tvAbort.abort();
+        tvResumeAutoChannel = null;
+    };
 }
 
 // ===== FIM TV RETRÔ =====

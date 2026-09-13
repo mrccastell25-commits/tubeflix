@@ -2400,7 +2400,7 @@ body.firebase-banner-active .hero-banner {
 
 .custom-category-item {
     display: grid;
-    grid-template-columns: 1fr auto auto;   /* nome | checkbox-label | lixeira */
+    grid-template-columns: 1fr auto auto auto;   /* nome | fullscreen | nova guia | lixeira */
     align-items: center;
     gap: 12px;
     background-color: rgba(255,255,255,0.05);
@@ -2408,7 +2408,7 @@ body.firebase-banner-active .hero-banner {
     border-radius: 6px;
     padding: 8px 12px;
     font-size: 0.85rem;
-    flex-shrink: 0;     /* impede que itens encolham dentro do scroll */
+    flex-shrink: 0;
 }
 
 .btn-delete-custom-category {

@@ -64,9 +64,12 @@
                 <input type="text" id="search-input" class="search-input" placeholder="Títulos, canais ou gêneros...">
             </div>
             
-            <!-- Botão de mute da música de fundo — só aparece quando há uma música configurada -->
-            <button class="btn-bg-music-mute hidden" id="btn-bg-music-mute" title="Música de fundo">
-                <i data-lucide="volume-2" id="bg-music-icon"></i>
+            <!-- Botão da Web Rádio na navbar -->
+            <button class="btn-radio-open hidden" id="btn-radio-open" title="Web Rádio">
+                <span class="radio-eq-mini" id="radio-eq-mini">
+                    <span></span><span></span><span></span><span></span>
+                </span>
+                <span class="radio-btn-label">Rádio</span>
             </button>
 
             <button class="admin-btn" id="btn-admin-panel" title="Painel do Administrador">
@@ -78,7 +81,32 @@
             </div>
         </div>
     </nav>
-    <!-- Pop-up do Catálogo de Categorias (desktop) -->
+    <!-- Painel flutuante da Web Rádio -->
+    <div class="radio-panel hidden" id="radio-panel">
+        <div class="radio-panel-header">
+            <div class="radio-panel-title">
+                <span class="radio-eq" id="radio-eq-panel">
+                    <span></span><span></span><span></span><span></span><span></span>
+                </span>
+                <span>Web Rádio</span>
+            </div>
+            <button class="radio-panel-close" id="btn-radio-close" title="Fechar">
+                <i data-lucide="x" style="width:15px;height:15px;"></i>
+            </button>
+        </div>
+        <div class="radio-now-playing" id="radio-now-playing">
+            <span class="radio-np-label">Selecione uma estação abaixo</span>
+            <span class="radio-np-desc" id="radio-np-desc"></span>
+        </div>
+        <div class="radio-stations-list" id="radio-stations-list">
+            <!-- preenchido via JS -->
+        </div>
+        <div class="radio-controls">
+            <button class="radio-btn-stop hidden" id="radio-btn-stop">
+                <i data-lucide="square" style="width:14px;height:14px;"></i> Parar
+            </button>
+        </div>
+    </div>
     <div class="catalog-popup-overlay hidden" id="catalog-popup-overlay"></div>
     <div class="catalog-popup hidden" id="catalog-popup" role="dialog" aria-label="Catálogo de categorias">
         <div class="catalog-popup-header">
@@ -564,19 +592,31 @@
                 </div>
             </div>
 
-            <!-- Painel de Música de Fundo -->
+            <!-- Painel de Gestão da Web Rádio -->
             <div id="bg-music-panel" class="category-labels-panel hidden">
-                <p class="category-labels-hint">Cole o link de um vídeo do YouTube (pode ser uma playlist de músicas, lo-fi, trilha sonora, etc.) para tocar em segundo plano enquanto o usuário navega. A música pausa automaticamente quando um vídeo é aberto e retoma ao fechar.</p>
-                <div class="category-labels-grid" style="grid-template-columns: 1fr;">
-                    <div class="form-group">
-                        <label for="bg-music-url">Link do YouTube</label>
-                        <input type="url" id="bg-music-url" class="form-control" placeholder="https://www.youtube.com/watch?v=...">
-                        <span class="input-hint">Funciona com qualquer link do YouTube: vídeo normal, playlist ou música. O player fica invisível — só o áudio toca.</span>
+                <p class="category-labels-hint">Cadastre estações de rádio — cada uma é um link de vídeo/playlist do YouTube. O usuário escolhe o que ouvir enquanto navega. A rádio inicia desligada e pausa ao abrir um vídeo.</p>
+
+                <!-- Formulário de nova estação -->
+                <div class="radio-admin-form">
+                    <div class="form-group" style="margin-bottom:8px;">
+                        <input type="text" id="radio-station-label" class="form-control" placeholder="Nome da estação (ex: Lo-fi, Rock Clássico, Jazz...)">
+                    </div>
+                    <div class="form-group" style="margin-bottom:8px;">
+                        <input type="text" id="radio-station-desc" class="form-control" placeholder="Descrição curta (ex: Beats relaxantes para focar)">
+                    </div>
+                    <div class="form-group" style="margin-bottom:8px;">
+                        <input type="url" id="radio-station-url" class="form-control" placeholder="Link do YouTube (vídeo, live ou playlist)">
+                    </div>
+                    <div class="category-labels-actions" style="margin-top:4px;">
+                        <button type="button" id="btn-add-radio-station" class="btn-auth-submit" style="width:auto;padding:8px 18px;">
+                            <i data-lucide="plus" style="width:14px;height:14px;"></i> Adicionar Estação
+                        </button>
                     </div>
                 </div>
-                <div class="category-labels-actions">
-                    <button type="button" id="btn-remove-bg-music" class="btn-cancel-action">Remover Música</button>
-                    <button type="button" id="btn-save-bg-music" class="btn-auth-submit" style="width:auto; padding: 10px 20px;">Salvar Música</button>
+
+                <!-- Lista de estações cadastradas -->
+                <div class="radio-admin-list" id="radio-admin-list">
+                    <p style="font-size:0.8rem;color:var(--text-muted);">Nenhuma estação cadastrada ainda.</p>
                 </div>
             </div>
 

@@ -153,7 +153,7 @@ function listenToSharedSettings() {
             favorites: data.favorites || [],
             watchHistory: data.watchHistory || [],
             gridDensity: data.gridDensity || '4',
-            backgroundMusicUrl: data.backgroundMusicUrl || null
+            radioStations: data.radioStations || []
         };
         myFavoriteList = sharedSettings.favorites;
 
@@ -163,7 +163,12 @@ function listenToSharedSettings() {
         applyGridDensityPreference();
         filterAndRenderRows();
         renderCustomCategoriesAdminList();
-        applyBackgroundMusic(sharedSettings.backgroundMusicUrl);
+        updateRadioNavBtn();
+        renderRadioAdminList();
+        // Atualiza painel da rádio se estiver aberto
+        if (document.getElementById('radio-panel') && !document.getElementById('radio-panel').classList.contains('hidden')) {
+            renderRadioStationsList();
+        }
         // Se o painel admin estiver aberto no momento, atualiza a lista para refletir o novo nome
         // de categoria imediatamente (sem precisar fechar e abrir o painel de novo)
         if (modalAdmin && !modalAdmin.classList.contains('hidden')) {
@@ -880,44 +885,58 @@ function setupEventListeners() {
             showToast('Senha alterada com sucesso!');
         });
     }
-    // Painel de Música de Fundo
+    // ── Painel da Web Rádio (admin) ──
     const btnEditBgMusic = document.getElementById('btn-edit-bg-music');
     const bgMusicPanel = document.getElementById('bg-music-panel');
     if (btnEditBgMusic && bgMusicPanel) {
         btnEditBgMusic.addEventListener('click', () => {
             if (categoryLabelsPanel) categoryLabelsPanel.classList.add('hidden');
             if (passwordChangePanel) passwordChangePanel.classList.add('hidden');
-            // Preenche o campo com a URL atual (se houver)
-            const input = document.getElementById('bg-music-url');
-            if (input) input.value = sharedSettings.backgroundMusicUrl || '';
             bgMusicPanel.classList.toggle('hidden');
-        });
-    }
-    const btnSaveBgMusic = document.getElementById('btn-save-bg-music');
-    if (btnSaveBgMusic) {
-        btnSaveBgMusic.addEventListener('click', () => {
-            const url = (document.getElementById('bg-music-url').value || '').trim();
-            if (!url) { alert('Cole o link do arquivo MP3 antes de salvar.'); return; }
-            if (useLocalStorageFallback) { warnFirebaseUnavailable(); return; }
-            settingsRef.child('backgroundMusicUrl').set(url);
-            bgMusicPanel.classList.add('hidden');
-            showToast('Música de fundo salva! Ela vai tocar para todos os visitantes.');
-        });
-    }
-    const btnRemoveBgMusic = document.getElementById('btn-remove-bg-music');
-    if (btnRemoveBgMusic) {
-        btnRemoveBgMusic.addEventListener('click', () => {
-            if (useLocalStorageFallback) { warnFirebaseUnavailable(); return; }
-            settingsRef.child('backgroundMusicUrl').remove();
-            bgMusicPanel.classList.add('hidden');
-            showToast('Música de fundo removida.');
+            if (!bgMusicPanel.classList.contains('hidden')) renderRadioAdminList();
         });
     }
 
-    // Botão mute/unmute da música de fundo na navbar
-    const btnMute = document.getElementById('btn-bg-music-mute');
-    if (btnMute) {
-        btnMute.addEventListener('click', () => toggleBgMusicMute());
+    // Adicionar nova estação
+    const btnAddStation = document.getElementById('btn-add-radio-station');
+    if (btnAddStation) {
+        btnAddStation.addEventListener('click', () => {
+            const label = (document.getElementById('radio-station-label')?.value || '').trim();
+            const desc  = (document.getElementById('radio-station-desc')?.value || '').trim();
+            const url   = (document.getElementById('radio-station-url')?.value || '').trim();
+            if (!label) { alert('Digite o nome da estação.'); return; }
+            if (!url)   { alert('Cole o link do YouTube.'); return; }
+            if (!extractYouTubeId(url)) { alert('Link do YouTube inválido.'); return; }
+            if (useLocalStorageFallback) { warnFirebaseUnavailable(); return; }
+            const key = slugifyCategoryKey(label) + '_' + Date.now();
+            const stations = [...getRadioStations(), { key, label, description: desc, youtubeUrl: url }];
+            settingsRef.child('radioStations').set(stations);
+            document.getElementById('radio-station-label').value = '';
+            document.getElementById('radio-station-desc').value = '';
+            document.getElementById('radio-station-url').value = '';
+            showToast('Estação adicionada!');
+        });
+    }
+
+    // ── Botão da rádio na navbar ──
+    const btnRadioOpen = document.getElementById('btn-radio-open');
+    const radioPanel = document.getElementById('radio-panel');
+    if (btnRadioOpen && radioPanel) {
+        btnRadioOpen.addEventListener('click', () => {
+            const isHidden = radioPanel.classList.contains('hidden');
+            radioPanel.classList.toggle('hidden', !isHidden);
+            if (isHidden) renderRadioStationsList();
+        });
+    }
+    const btnRadioClose = document.getElementById('btn-radio-close');
+    if (btnRadioClose) {
+        btnRadioClose.addEventListener('click', () => {
+            document.getElementById('radio-panel')?.classList.add('hidden');
+        });
+    }
+    const btnRadioStop = document.getElementById('radio-btn-stop');
+    if (btnRadioStop) {
+        btnRadioStop.addEventListener('click', stopRadio);
     }
 
     if (btnBackToList) {
@@ -2266,9 +2285,10 @@ window.onYouTubeIframeAPIReady = function() {
         pendingAutoplayVideoId = null;
         createOrLoadYoutubePlayer(videoId);
     }
-    // Se havia uma música de fundo pendente (URL carregada do Firebase antes da API ficar pronta)
-    if (bgMusicVideoId && !bgMusicPlayer) {
-        initBgMusicPlayer();
+    // Se havia uma estação de rádio aguardando a API ficar pronta, inicia agora
+    if (radioIsPlaying && radioCurrentStation && !radioPlayer) {
+        const videoId = extractYouTubeId(radioCurrentStation.youtubeUrl);
+        if (videoId) initRadioPlayer(videoId);
     }
 };
 
@@ -2676,130 +2696,195 @@ function cancelNextEpisodeCountdown() {
 
 // Abrir Vídeo no Modal
 // ===== MÚSICA DE FUNDO (YouTube IFrame) =====
-// Estado: 'playing' | 'muted' | 'off'
-let bgMusicState = 'off';
-let bgMusicVideoId = null;   // ID do vídeo YouTube atual
-let bgMusicPlayer = null;    // Instância YT.Player invisível
-let bgMusicReady = false;    // true quando o player já passou pelo onReady
+// ============================================================
+// WEB RÁDIO
+// ============================================================
+let radioPlayer = null;       // YT.Player invisível da rádio
+let radioPlayerReady = false;
+let radioCurrentStation = null; // { key, label, description, youtubeUrl }
+let radioIsPlaying = false;
 
-// Extrai o videoId de qualquer link YouTube (reutiliza a função já existente no projeto)
-function getBgMusicVideoId(url) {
-    if (!url) return null;
-    return extractYouTubeId(url.trim()) || null;
+// Obtém estações do Firebase (sharedSettings.radioStations)
+function getRadioStations() {
+    return (sharedSettings && sharedSettings.radioStations) ? sharedSettings.radioStations : [];
 }
 
-// Chamada quando o Firebase atualiza backgroundMusicUrl
-function applyBackgroundMusic(url) {
-    const btn = document.getElementById('btn-bg-music-mute');
-    const newId = getBgMusicVideoId(url);
-
-    if (!newId) {
-        // Sem música configurada: para e esconde o botão
-        if (bgMusicPlayer && bgMusicReady) {
-            try { bgMusicPlayer.stopVideo(); } catch(e) {}
-        }
-        bgMusicState = 'off';
-        bgMusicVideoId = null;
-        if (btn) btn.classList.add('hidden');
-        return;
-    }
-
-    if (btn) btn.classList.remove('hidden');
-
-    // Se a URL não mudou, não recria o player
-    if (newId === bgMusicVideoId) return;
-    bgMusicVideoId = newId;
-
-    // Respeita mute anterior
-    if (bgMusicState !== 'muted') bgMusicState = 'playing';
-    updateBgMusicIcon();
-
-    if (bgMusicPlayer && bgMusicReady) {
-        // Player já existe: só troca o vídeo
-        try { bgMusicPlayer.loadVideoById(bgMusicVideoId); } catch(e) {}
-        if (bgMusicState !== 'playing') {
-            try { bgMusicPlayer.pauseVideo(); } catch(e) {}
-        }
+// Mostra/oculta o botão de rádio na navbar conforme houver estações cadastradas
+function updateRadioNavBtn() {
+    const btn = document.getElementById('btn-radio-open');
+    if (!btn) return;
+    const stations = getRadioStations();
+    if (stations.length > 0) {
+        btn.classList.remove('hidden');
     } else {
-        // Cria o player invisível (pode ocorrer antes ou depois da API carregar)
-        initBgMusicPlayer();
+        btn.classList.add('hidden');
     }
 }
 
-function initBgMusicPlayer() {
-    if (typeof YT === 'undefined' || !YT.Player) {
-        // API ainda não carregou; onYouTubeIframeAPIReady vai chamar initBgMusicPlayer depois
+// Renderiza a lista de estações no painel flutuante
+function renderRadioStationsList() {
+    const list = document.getElementById('radio-stations-list');
+    if (!list) return;
+    const stations = getRadioStations();
+    if (!stations.length) {
+        list.innerHTML = '<p style="font-size:0.78rem;color:var(--text-muted);padding:12px 16px;">Nenhuma estação disponível.</p>';
         return;
     }
-    if (!bgMusicVideoId) return;
+    const icons = ['🎵','🎸','🎹','🎷','🥁','🎺','🎻','🎤','🎼','🔊'];
+    list.innerHTML = stations.map((s, i) => {
+        const isActive = radioCurrentStation && radioCurrentStation.key === s.key;
+        return `<div class="radio-station-item${isActive ? ' active' : ''}" data-key="${s.key}">
+            <span class="radio-station-icon">${icons[i % icons.length]}</span>
+            <div class="radio-station-info">
+                <div class="radio-station-name">${escapeHtmlForCategory(s.label)}</div>
+                ${s.description ? `<div class="radio-station-desc">${escapeHtmlForCategory(s.description)}</div>` : ''}
+            </div>
+            <span class="radio-station-playing-icon">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <rect x="1" y="4" width="2" height="6" rx="1" fill="#e50914"><animate attributeName="height" values="6;12;6" dur="0.8s" repeatCount="indefinite"/><animate attributeName="y" values="4;1;4" dur="0.8s" repeatCount="indefinite"/></rect>
+                    <rect x="5" y="2" width="2" height="10" rx="1" fill="#e50914"><animate attributeName="height" values="10;4;10" dur="0.6s" repeatCount="indefinite"/><animate attributeName="y" values="2;5;2" dur="0.6s" repeatCount="indefinite"/></rect>
+                    <rect x="9" y="3" width="2" height="8" rx="1" fill="#e50914"><animate attributeName="height" values="8;13;8" dur="1.0s" repeatCount="indefinite"/><animate attributeName="y" values="3;0;3" dur="1.0s" repeatCount="indefinite"/></rect>
+                    <rect x="13" y="5" width="2" height="4" rx="1" fill="#e50914"><animate attributeName="height" values="4;10;4" dur="0.7s" repeatCount="indefinite"/><animate attributeName="y" values="5;2;5" dur="0.7s" repeatCount="indefinite"/></rect>
+                </svg>
+            </span>
+        </div>`;
+    }).join('');
 
-    bgMusicReady = false;
-    bgMusicPlayer = new YT.Player('bg-music-yt-placeholder', {
-        videoId: bgMusicVideoId,
-        playerVars: {
-            autoplay: 1,
-            loop: 1,
-            playlist: bgMusicVideoId, // necessário para loop funcionar
-            controls: 0,
-            disablekb: 1,
-            fs: 0,
-            rel: 0,
-            iv_load_policy: 3,
-            modestbranding: 1
-        },
+    list.querySelectorAll('.radio-station-item').forEach(el => {
+        el.addEventListener('click', () => {
+            const key = el.getAttribute('data-key');
+            const station = getRadioStations().find(s => s.key === key);
+            if (station) playRadioStation(station);
+        });
+    });
+}
+
+// Toca uma estação da rádio
+function playRadioStation(station) {
+    const videoId = extractYouTubeId(station.youtubeUrl);
+    if (!videoId) return;
+
+    radioCurrentStation = station;
+    radioIsPlaying = true;
+
+    // Atualiza "now playing"
+    const npLabel = document.getElementById('radio-np-desc');
+    const npTitle = document.querySelector('.radio-np-label');
+    if (npTitle) npTitle.textContent = station.label;
+    if (npLabel) npLabel.textContent = station.description || '';
+
+    // Atualiza visual
+    const panel = document.getElementById('radio-panel');
+    if (panel) panel.classList.add('is-playing');
+    const btn = document.getElementById('btn-radio-open');
+    if (btn) btn.classList.add('playing');
+    const stopBtn = document.getElementById('radio-btn-stop');
+    if (stopBtn) stopBtn.classList.remove('hidden');
+
+    renderRadioStationsList();
+
+    // Player YT
+    if (radioPlayer && radioPlayerReady) {
+        try { radioPlayer.loadVideoById(videoId); } catch(e) {}
+    } else {
+        initRadioPlayer(videoId);
+    }
+}
+
+function initRadioPlayer(videoId) {
+    if (typeof YT === 'undefined' || !YT.Player) return;
+    if (!videoId) return;
+    radioPlayerReady = false;
+    radioPlayer = new YT.Player('bg-music-yt-placeholder', {
+        videoId,
+        playerVars: { autoplay: 1, loop: 1, playlist: videoId, controls: 0, disablekb: 1, fs: 0, rel: 0, iv_load_policy: 3, modestbranding: 1 },
         events: {
             onReady: (e) => {
-                bgMusicReady = true;
-                e.target.setVolume(40);
-                if (bgMusicState === 'playing') {
-                    e.target.playVideo();
-                } else {
-                    e.target.pauseVideo();
+                radioPlayerReady = true;
+                e.target.setVolume(50);
+                if (radioIsPlaying) e.target.playVideo();
+            },
+            onStateChange: (e) => {
+                // Loop manual: quando termina, reinicia
+                if (e.data === YT.PlayerState.ENDED) {
+                    try { e.target.playVideo(); } catch(err) {}
                 }
             },
-            onError: () => {
-                // Vídeo não incorporável ou erro: esconde o botão silenciosamente
-                bgMusicState = 'off';
-                const btn = document.getElementById('btn-bg-music-mute');
-                if (btn) btn.classList.add('hidden');
-            }
+            onError: () => { stopRadio(); }
         }
     });
 }
 
-function toggleBgMusicMute() {
-    if (bgMusicState === 'off' || !bgMusicPlayer || !bgMusicReady) return;
-
-    if (bgMusicState === 'playing') {
-        try { bgMusicPlayer.pauseVideo(); } catch(e) {}
-        bgMusicState = 'muted';
-    } else {
-        try { bgMusicPlayer.playVideo(); } catch(e) {}
-        bgMusicState = 'playing';
+function stopRadio() {
+    radioIsPlaying = false;
+    radioCurrentStation = null;
+    if (radioPlayer && radioPlayerReady) {
+        try { radioPlayer.stopVideo(); } catch(e) {}
     }
-    updateBgMusicIcon();
+    const panel = document.getElementById('radio-panel');
+    if (panel) panel.classList.remove('is-playing');
+    const btn = document.getElementById('btn-radio-open');
+    if (btn) btn.classList.remove('playing');
+    const stopBtn = document.getElementById('radio-btn-stop');
+    if (stopBtn) stopBtn.classList.add('hidden');
+    const npTitle = document.querySelector('.radio-np-label');
+    if (npTitle) npTitle.textContent = 'Selecione uma estação abaixo';
+    const npDesc = document.getElementById('radio-np-desc');
+    if (npDesc) npDesc.textContent = '';
+    renderRadioStationsList();
 }
 
-function updateBgMusicIcon() {
-    const icon = document.getElementById('bg-music-icon');
-    if (!icon) return;
-    icon.setAttribute('data-lucide', bgMusicState === 'muted' ? 'volume-x' : 'volume-2');
-    lucide.createIcons({ nodes: [icon] });
-}
-
-// Chamados ao abrir/fechar o player de vídeo
+// Pausa/retoma ao abrir/fechar o player de vídeo
 function pauseBgMusic() {
-    if (bgMusicPlayer && bgMusicReady && bgMusicState === 'playing') {
-        try { bgMusicPlayer.pauseVideo(); } catch(e) {}
+    if (radioPlayer && radioPlayerReady && radioIsPlaying) {
+        try { radioPlayer.pauseVideo(); } catch(e) {}
     }
 }
 
 function resumeBgMusic() {
-    if (bgMusicPlayer && bgMusicReady && bgMusicState === 'playing') {
-        try { bgMusicPlayer.playVideo(); } catch(e) {}
+    if (radioPlayer && radioPlayerReady && radioIsPlaying) {
+        try { radioPlayer.playVideo(); } catch(e) {}
     }
 }
-// ============================================
+
+// Stub para compatibilidade com chamadas antigas no Firebase listener
+function applyBackgroundMusic() {}
+
+// ── Admin: lista de estações no painel ──
+function renderRadioAdminList() {
+    const list = document.getElementById('radio-admin-list');
+    if (!list) return;
+    const stations = getRadioStations();
+    if (!stations.length) {
+        list.innerHTML = '<p style="font-size:0.8rem;color:var(--text-muted);">Nenhuma estação cadastrada ainda.</p>';
+        return;
+    }
+    list.innerHTML = stations.map(s => `
+        <div class="radio-admin-item">
+            <div class="radio-admin-item-info">
+                <div class="radio-admin-item-name">${escapeHtmlForCategory(s.label)}</div>
+                ${s.description ? `<div class="radio-admin-item-desc">${escapeHtmlForCategory(s.description)}</div>` : ''}
+                <div class="radio-admin-item-url">${s.youtubeUrl}</div>
+            </div>
+            <div class="radio-admin-item-actions">
+                <button type="button" class="btn-delete-custom-category" data-key="${s.key}" title="Excluir estação">
+                    <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+                </button>
+            </div>
+        </div>
+    `).join('');
+    lucide.createIcons();
+
+    list.querySelectorAll('.btn-delete-custom-category').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const key = btn.getAttribute('data-key');
+            if (!confirm('Excluir esta estação de rádio?')) return;
+            const updated = getRadioStations().filter(s => s.key !== key);
+            settingsRef.child('radioStations').set(updated.length ? updated : null);
+        });
+    });
+}
+// ============================================================
 
 // ===== MINI TV RETRÔ NO HERO =====
 

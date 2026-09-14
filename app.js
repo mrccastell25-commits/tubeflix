@@ -3624,22 +3624,46 @@ function importLibraryFromJson(e) {
         return m ? m[1] : null;
     }
 
-    // ── Abre o embed sobre a imagem de fundo ──
+    let fadeOutTimer = null;
+
+    // ── Abre o embed com fade-in sobre a imagem de fundo ──
     function openHeroEmbed(videoId) {
         pauseBgMusic();
-        // enablejsapi=1 permite receber eventos de estado via postMessage
+        clearTimeout(fadeOutTimer);
+
+        // Garante estado limpo antes de abrir
+        heroEmbed.classList.remove('hidden', 'embed-fadeout');
+        heroEmbed.classList.remove('embed-visible'); // força reflow antes do fade-in
+        heroEmbed.offsetHeight; // reflow
+
         heroIframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
-        heroEmbed.classList.remove('hidden');
+
+        // Inicia fade-in no próximo frame
+        requestAnimationFrame(() => {
+            heroEmbed.classList.add('embed-visible');
+        });
+
         if (heroOverlay) heroOverlay.style.background =
             'linear-gradient(to right, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.05) 35%, transparent 100%)';
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
-    // ── Fecha o embed e volta à imagem de fundo ──
+    // ── Fecha o embed com fade-out suave, depois limpa o iframe ──
     function closeHeroEmbed() {
-        heroIframe.src = '';
-        heroEmbed.classList.add('hidden');
+        if (heroEmbed.classList.contains('hidden')) return;
+        clearTimeout(fadeOutTimer);
+
+        // Inicia fade-out
+        heroEmbed.classList.remove('embed-visible');
+        heroEmbed.classList.add('embed-fadeout');
         if (heroOverlay) heroOverlay.style.background = '';
+
+        // Após a transição (1s), para o iframe e oculta
+        fadeOutTimer = setTimeout(() => {
+            heroIframe.src = '';
+            heroEmbed.classList.remove('embed-fadeout');
+            heroEmbed.classList.add('hidden');
+        }, 1050);
     }
 
     // Expõe globalmente para openPlayerModal fechar o embed ao abrir qualquer vídeo
@@ -3659,12 +3683,23 @@ function importLibraryFromJson(e) {
     embedClose.addEventListener('click', closeHeroEmbed);
 
     // ── Detecta fim do vídeo via postMessage da YouTube IFrame API ──
+    // O YouTube envia um JSON com event:'onStateChange' e info:0 quando o vídeo termina.
+    // Também enviamos o comando 'listening' para o player registrar o listener.
     window.addEventListener('message', function(e) {
+        if (!e.data) return;
         try {
             const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-            // info: 0 = vídeo terminou (ended)
-            if (data && data.event === 'onStateChange' && data.info === 0) {
+            if (!data) return;
+            // Estado 0 = ended; inicia fade-out e volta à imagem de fundo
+            if (data.event === 'onStateChange' && data.info === 0) {
                 closeHeroEmbed();
+            }
+            // Quando o player está pronto, registra o listener de estado
+            if (data.event === 'onReady') {
+                heroIframe.contentWindow.postMessage(
+                    JSON.stringify({ event: 'listening' }),
+                    '*'
+                );
             }
         } catch (_) {}
     });

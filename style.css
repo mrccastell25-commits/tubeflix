@@ -62,14 +62,14 @@ body {
     align-items: center;
     padding: 0 4%;
     z-index: 500;
-    background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%);
+    background-color: var(--netflix-black);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
     transition: background-color var(--transition-smooth);
 }
 
 .netflix-navbar.scrolled {
     background-color: var(--netflix-black);
     border-bottom: 1px solid var(--glass-border);
-    backdrop-filter: blur(10px);
 }
 
 .nav-left {
@@ -3669,20 +3669,32 @@ body.firebase-banner-active .hero-banner {
     left: 0;
     width: 100%;
     height: 80vh;
-    z-index: 2; /* acima da imagem (0) e do overlay (1); conteúdo hero fica em z:4 */
-    background: transparent; /* imagem de fundo aparece atrás */
+    z-index: 2;
+    background: transparent;
     pointer-events: all;
-    transition: opacity 0.4s ease;
+    opacity: 0;
+    transition: opacity 1s ease;
+}
+
+/* Visível: fade in */
+.hero-video-embed.embed-visible {
+    opacity: 1;
+}
+
+/* Saindo: fade out — mantém no DOM até transição terminar */
+.hero-video-embed.embed-fadeout {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Quando hero sair do viewport, some imediatamente */
+.hero-video-embed.hero-bg-hidden {
+    opacity: 0 !important;
+    pointer-events: none;
 }
 
 .hero-video-embed.hidden {
     display: none;
-}
-
-/* Quando hero sair do viewport, some o embed também */
-.hero-video-embed.hero-bg-hidden {
-    opacity: 0;
-    pointer-events: none;
 }
 
 .hero-video-embed iframe {

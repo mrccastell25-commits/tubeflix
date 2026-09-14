@@ -796,7 +796,7 @@ body {
     width: 100%;
     height: 80vh;
     background: linear-gradient(to right, rgba(20, 20, 20, 0.9) 0%, rgba(20, 20, 20, 0.4) 50%, transparent 100%);
-    z-index: 1;
+    z-index: 3; /* acima do embed (2) para o gradiente lateral funcionar sobre o vídeo */
     pointer-events: none;
     transition: opacity 0.5s ease;
 }
@@ -3662,15 +3662,15 @@ body.firebase-banner-active .hero-banner {
    HERO VIDEO EMBED INLINE (FIXED NO FUNDO)
    ============================================= */
 
-/* Container do iframe fica fixo, igual ao hero-background */
+/* Container do iframe fica fixo, entre a imagem de fundo (z:0) e o overlay/conteúdo (z:1+) */
 .hero-video-embed {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 80vh;
-    z-index: 2; /* acima do hero-background (0), abaixo do overlay e conteúdo */
-    background: #000;
+    z-index: 2; /* acima da imagem (0) e do overlay (1); conteúdo hero fica em z:4 */
+    background: transparent; /* imagem de fundo aparece atrás */
     pointer-events: all;
     transition: opacity 0.4s ease;
 }

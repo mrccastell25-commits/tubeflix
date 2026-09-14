@@ -3059,6 +3059,8 @@ function initRetroTV() {
 // ===== FIM TV RETRÔ =====
 
 function openPlayerModal(video) {
+    // Se o embed inline do hero estiver rodando, fecha-o antes de abrir o modal
+    if (typeof window.closeHeroEmbedIfOpen === 'function') window.closeHeroEmbedIfOpen();
     pauseBgMusic(); // Para a música de fundo enquanto o vídeo toca
     playerModal.classList.remove('hidden');
     document.body.style.overflow = 'hidden'; // Travar rolagem do fundo
@@ -3614,33 +3616,27 @@ function importLibraryFromJson(e) {
 
     if (!heroEmbed || !heroIframe || !embedClose || !heroBg) return;
 
-    // ── Abre o embed no lugar da imagem de fundo ──
+    // ── Abre o embed sobre a imagem de fundo (imagem permanece visível atrás) ──
     function openHeroEmbed(videoId) {
-        // Para música de fundo se estiver tocando
         pauseBgMusic();
-
-        // URL com autoplay e sem controles de interface do YouTube para manter a estética
         heroIframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
-
-        // Esconde imagem de fundo e mostra embed
-        heroBg.style.opacity = '0';
+        // Mostra embed; a imagem de fundo fica visível por trás via z-index
         heroEmbed.classList.remove('hidden');
-
-        // O overlay fica mais leve para não tampar o vídeo completamente
+        // Overlay mais leve enquanto o vídeo toca
         if (heroOverlay) heroOverlay.style.background =
-            'linear-gradient(to right, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.1) 40%, transparent 100%)';
-
-        // Renderiza ícone do botão fechar
+            'linear-gradient(to right, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.05) 35%, transparent 100%)';
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
-    // ── Fecha o embed e volta à imagem ──
+    // ── Fecha o embed — imagem de fundo já estava visível, só limpa o iframe ──
     function closeHeroEmbed() {
         heroIframe.src = '';
         heroEmbed.classList.add('hidden');
-        heroBg.style.opacity = '';
         if (heroOverlay) heroOverlay.style.background = '';
     }
+
+    // Expõe globalmente para que openPlayerModal possa fechar o embed
+    window.closeHeroEmbedIfOpen = closeHeroEmbed;
 
     // ── Botão X fecha o embed ──
     embedClose.addEventListener('click', closeHeroEmbed);

@@ -2113,9 +2113,11 @@ function setupHeroBanner() {
     const newPlayBtn = currentPlayBtn.cloneNode(true);
     currentPlayBtn.parentNode.replaceChild(newPlayBtn, currentPlayBtn);
 
-    document.getElementById('hero-play-btn').addEventListener('click', () => {
-        openPlayerModal(featuredVideo);
-    });
+    // Autoplay do vídeo em destaque como fundo ao carregar a página
+    // (só roda na primeira chamada; depois openPlayerModal cuida de fechar o embed)
+    if (typeof window.openHeroEmbedForFeatured === 'function') {
+        window.openHeroEmbedForFeatured();
+    }
 }
 
 // Inserir os Cards no Slider
@@ -3606,70 +3608,75 @@ function importLibraryFromJson(e) {
 // =============================================
 
 (function initHeroEmbed() {
-    // Elementos do embed
-    const heroBg      = document.getElementById('hero-bg-image');
-    const heroOverlay = document.getElementById('hero-overlay');
-    const heroEmbed   = document.getElementById('hero-video-embed');
-    const heroIframe  = document.getElementById('hero-video-iframe');
-    const embedClose  = document.getElementById('hero-embed-close');
-    const heroBanner  = document.getElementById('hero-banner');
+    const heroBg     = document.getElementById('hero-bg-image');
+    const heroOverlay= document.getElementById('hero-overlay');
+    const heroEmbed  = document.getElementById('hero-video-embed');
+    const heroIframe = document.getElementById('hero-video-iframe');
+    const embedClose = document.getElementById('hero-embed-close');
+    const heroBanner = document.getElementById('hero-banner');
 
     if (!heroEmbed || !heroIframe || !embedClose || !heroBg) return;
 
-    // ── Abre o embed sobre a imagem de fundo (imagem permanece visível atrás) ──
+    // ── Utilitário: extrai ID do YouTube ──
+    function extractYouTubeId(url) {
+        if (!url) return null;
+        const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/);
+        return m ? m[1] : null;
+    }
+
+    // ── Abre o embed sobre a imagem de fundo ──
     function openHeroEmbed(videoId) {
         pauseBgMusic();
-        heroIframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
-        // Mostra embed; a imagem de fundo fica visível por trás via z-index
+        // enablejsapi=1 permite receber eventos de estado via postMessage
+        heroIframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
         heroEmbed.classList.remove('hidden');
-        // Overlay mais leve enquanto o vídeo toca
         if (heroOverlay) heroOverlay.style.background =
             'linear-gradient(to right, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.05) 35%, transparent 100%)';
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
-    // ── Fecha o embed — imagem de fundo já estava visível, só limpa o iframe ──
+    // ── Fecha o embed e volta à imagem de fundo ──
     function closeHeroEmbed() {
         heroIframe.src = '';
         heroEmbed.classList.add('hidden');
         if (heroOverlay) heroOverlay.style.background = '';
     }
 
-    // Expõe globalmente para que openPlayerModal possa fechar o embed
+    // Expõe globalmente para openPlayerModal fechar o embed ao abrir qualquer vídeo
     window.closeHeroEmbedIfOpen = closeHeroEmbed;
+
+    // ── Expõe também para setupHeroBanner disparar o autoplay ──
+    window.openHeroEmbedForFeatured = function() {
+        const featured = (typeof allVideos !== 'undefined')
+            ? (allVideos.find(v => v.featured && v.title) || allVideos.find(v => v.title))
+            : null;
+        if (!featured) return;
+        const videoId = extractYouTubeId(featured.youtubeUrl || featured.url || '');
+        if (videoId) openHeroEmbed(videoId);
+    };
 
     // ── Botão X fecha o embed ──
     embedClose.addEventListener('click', closeHeroEmbed);
 
-    // ── Intercepta o clique em "Assistir" no hero ──
-    // Usa delegação para pegar o botão mesmo após o clone feito pelo updateHeroBanner
-    document.getElementById('hero-banner').addEventListener('click', function(e) {
-        const playBtn = e.target.closest('#hero-play-btn');
-        if (!playBtn) return;
+    // ── Detecta fim do vídeo via postMessage da YouTube IFrame API ──
+    window.addEventListener('message', function(e) {
+        try {
+            const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+            // info: 0 = vídeo terminou (ended)
+            if (data && data.event === 'onStateChange' && data.info === 0) {
+                closeHeroEmbed();
+            }
+        } catch (_) {}
+    });
 
-        // Descobre qual é o vídeo em destaque a partir do estado atual da aplicação
-        const featured = (typeof allVideos !== 'undefined')
-            ? (allVideos.find(v => v.featured && v.title) || allVideos.find(v => v.title))
-            : null;
-
-        if (!featured) return;
-
-        const videoId = extractYouTubeId(featured.youtubeUrl || featured.url || '');
-        if (!videoId) {
-            // Sem ID válido: abre no modal normalmente
-            return;
-        }
-
-        // Cancela o comportamento padrão (abrir modal)
-        e.stopImmediatePropagation();
-        openHeroEmbed(videoId);
-    }, true); // capture=true para rodar antes do listener do botão
-
-    // ── Scroll: some/mostra o fundo fixo quando o hero sair da tela ──
+    // ── Scroll: oculta/mostra fundo fixo quando hero sair da viewport ──
     function onScroll() {
         if (!heroBanner) return;
-        const rect = heroBanner.getBoundingClientRect();
-        // Hero ainda visível (pelo menos 20% aparecendo)
+        // Se o banner ainda estiver oculto (preload), não faz nada
+        if (heroBanner.classList.contains('hidden') ||
+            getComputedStyle(heroBanner).display === 'none') return;
+
+        const rect    = heroBanner.getBoundingClientRect();
         const visible = rect.bottom > heroBanner.offsetHeight * 0.2;
 
         heroBg.classList.toggle('hero-bg-hidden', !visible);
@@ -3678,12 +3685,18 @@ function importLibraryFromJson(e) {
     }
 
     window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll(); // estado inicial
 
-    // ── Utilitário: extrai o ID do YouTube da URL ──
-    function extractYouTubeId(url) {
-        if (!url) return null;
-        const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/);
-        return m ? m[1] : null;
-    }
+    // ── Garante visibilidade do fundo assim que o banner aparecer ──
+    // O preload style é removido pelo filterAndRenderRows; observamos o DOM para reagir
+    const visibilityObserver = new MutationObserver(function() {
+        if (!heroBanner.classList.contains('hidden') &&
+            getComputedStyle(heroBanner).display !== 'none') {
+            onScroll();         // corrige classes de visibilidade
+            visibilityObserver.disconnect();
+        }
+    });
+    visibilityObserver.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+
+    // Fallback: tenta onScroll imediatamente (caso o banner já esteja visível)
+    onScroll();
 })();

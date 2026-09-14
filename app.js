@@ -3598,3 +3598,96 @@ function importLibraryFromJson(e) {
     };
     reader.readAsText(file);
 }
+
+// =============================================
+//  HERO EMBED INLINE — vídeo fixo no fundo
+// =============================================
+
+(function initHeroEmbed() {
+    // Elementos do embed
+    const heroBg      = document.getElementById('hero-bg-image');
+    const heroOverlay = document.getElementById('hero-overlay');
+    const heroEmbed   = document.getElementById('hero-video-embed');
+    const heroIframe  = document.getElementById('hero-video-iframe');
+    const embedClose  = document.getElementById('hero-embed-close');
+    const heroBanner  = document.getElementById('hero-banner');
+
+    if (!heroEmbed || !heroIframe || !embedClose || !heroBg) return;
+
+    // ── Abre o embed no lugar da imagem de fundo ──
+    function openHeroEmbed(videoId) {
+        // Para música de fundo se estiver tocando
+        pauseBgMusic();
+
+        // URL com autoplay e sem controles de interface do YouTube para manter a estética
+        heroIframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
+
+        // Esconde imagem de fundo e mostra embed
+        heroBg.style.opacity = '0';
+        heroEmbed.classList.remove('hidden');
+
+        // O overlay fica mais leve para não tampar o vídeo completamente
+        if (heroOverlay) heroOverlay.style.background =
+            'linear-gradient(to right, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.1) 40%, transparent 100%)';
+
+        // Renderiza ícone do botão fechar
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    // ── Fecha o embed e volta à imagem ──
+    function closeHeroEmbed() {
+        heroIframe.src = '';
+        heroEmbed.classList.add('hidden');
+        heroBg.style.opacity = '';
+        if (heroOverlay) heroOverlay.style.background = '';
+    }
+
+    // ── Botão X fecha o embed ──
+    embedClose.addEventListener('click', closeHeroEmbed);
+
+    // ── Intercepta o clique em "Assistir" no hero ──
+    // Usa delegação para pegar o botão mesmo após o clone feito pelo updateHeroBanner
+    document.getElementById('hero-banner').addEventListener('click', function(e) {
+        const playBtn = e.target.closest('#hero-play-btn');
+        if (!playBtn) return;
+
+        // Descobre qual é o vídeo em destaque a partir do estado atual da aplicação
+        const featured = (typeof allVideos !== 'undefined')
+            ? (allVideos.find(v => v.featured && v.title) || allVideos.find(v => v.title))
+            : null;
+
+        if (!featured) return;
+
+        const videoId = extractYouTubeId(featured.youtubeUrl || featured.url || '');
+        if (!videoId) {
+            // Sem ID válido: abre no modal normalmente
+            return;
+        }
+
+        // Cancela o comportamento padrão (abrir modal)
+        e.stopImmediatePropagation();
+        openHeroEmbed(videoId);
+    }, true); // capture=true para rodar antes do listener do botão
+
+    // ── Scroll: some/mostra o fundo fixo quando o hero sair da tela ──
+    function onScroll() {
+        if (!heroBanner) return;
+        const rect = heroBanner.getBoundingClientRect();
+        // Hero ainda visível (pelo menos 20% aparecendo)
+        const visible = rect.bottom > heroBanner.offsetHeight * 0.2;
+
+        heroBg.classList.toggle('hero-bg-hidden', !visible);
+        if (heroOverlay) heroOverlay.classList.toggle('hero-bg-hidden', !visible);
+        heroEmbed.classList.toggle('hero-bg-hidden', !visible);
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll(); // estado inicial
+
+    // ── Utilitário: extrai o ID do YouTube da URL ──
+    function extractYouTubeId(url) {
+        if (!url) return null;
+        const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/);
+        return m ? m[1] : null;
+    }
+})();

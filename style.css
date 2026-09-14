@@ -761,30 +761,49 @@ body {
     display: flex;
     align-items: center;
     padding: 0 4%;
-    background-color: #000000;
-    overflow: hidden;
+    background-color: transparent;
+    overflow: visible;
     margin-bottom: 20px;
+    /* Reserva o espaço no layout sem precisar ser fixed */
+    z-index: 1;
 }
 
+/* Camada fixa de fundo: imagem E vídeo ficam parados durante o scroll */
 .hero-background {
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
     width: 100%;
-    height: 100%;
+    height: 80vh;
     background-size: cover;
     background-position: center 20%;
     transform-origin: center center;
-    transition: background-image 0.8s ease;
+    transition: background-image 0.8s ease, opacity 0.5s ease;
+    z-index: 0;
+    pointer-events: none;
+}
+
+/* Quando o hero sair do viewport, some o fundo fixo */
+.hero-background.hero-bg-hidden {
+    opacity: 0;
+    pointer-events: none;
 }
 
 .hero-overlay {
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
     width: 100%;
-    height: 100%;
+    height: 80vh;
     background: linear-gradient(to right, rgba(20, 20, 20, 0.9) 0%, rgba(20, 20, 20, 0.4) 50%, transparent 100%);
+    z-index: 1;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+}
+
+.hero-overlay.hero-bg-hidden {
+    opacity: 0;
+    pointer-events: none;
 }
 
 .hero-gradient-bottom {
@@ -794,13 +813,13 @@ body {
     width: 100%;
     height: 150px;
     background: linear-gradient(to top, var(--netflix-black) 0%, rgba(20, 20, 20, 0) 100%);
-    z-index: 10;
+    z-index: 3;
 }
 
 .hero-content {
     position: relative;
     max-width: 600px;
-    z-index: 20;
+    z-index: 4;
     display: flex;
     flex-direction: column;
     gap: 15px;
@@ -945,7 +964,7 @@ body {
     position: absolute;
     right: 5%;
     bottom: 80px;
-    z-index: 25;
+    z-index: 5;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -3638,3 +3657,68 @@ body.firebase-banner-active .hero-banner {
 }
 .btn-fullEmbed-close:hover { background-color: #f40612; }
 .btn-fullEmbed-close.hidden { display: none; }
+
+/* =============================================
+   HERO VIDEO EMBED INLINE (FIXED NO FUNDO)
+   ============================================= */
+
+/* Container do iframe fica fixo, igual ao hero-background */
+.hero-video-embed {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 80vh;
+    z-index: 2; /* acima do hero-background (0), abaixo do overlay e conteúdo */
+    background: #000;
+    pointer-events: all;
+    transition: opacity 0.4s ease;
+}
+
+.hero-video-embed.hidden {
+    display: none;
+}
+
+/* Quando hero sair do viewport, some o embed também */
+.hero-video-embed.hero-bg-hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.hero-video-embed iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+}
+
+/* Botão X para fechar o vídeo e voltar à imagem */
+.hero-embed-close {
+    position: absolute;
+    top: 90px; /* abaixo da navbar */
+    right: 20px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.75);
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    transition: background 0.2s ease, transform 0.2s ease;
+    backdrop-filter: blur(4px);
+}
+
+.hero-embed-close:hover {
+    background: rgba(229, 9, 20, 0.9);
+    transform: scale(1.1);
+}
+
+.hero-embed-close svg {
+    width: 18px;
+    height: 18px;
+    pointer-events: none;
+}

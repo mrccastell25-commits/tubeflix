@@ -124,7 +124,18 @@
     <!-- Banner Principal / Hero Destaque -->
     <header class="hero-banner" id="hero-banner">
         <div class="hero-background" id="hero-bg-image"></div>
-        <div class="hero-overlay"></div>
+        <!-- Embed inline do vídeo em destaque (substitui o bg ao clicar em Assistir) -->
+        <div class="hero-video-embed hidden" id="hero-video-embed">
+            <iframe id="hero-video-iframe"
+                frameborder="0"
+                allow="autoplay; encrypted-media; fullscreen"
+                allowfullscreen
+                src=""></iframe>
+            <button class="hero-embed-close" id="hero-embed-close" title="Fechar vídeo">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="hero-overlay" id="hero-overlay"></div>
         <div class="hero-content">
             <span class="hero-tagline"><i data-lucide="award"></i> EM DESTAQUE HOJE</span>
             <h2 class="hero-title" id="hero-title">Título do Vídeo em Destaque</h2>

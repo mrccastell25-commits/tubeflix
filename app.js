@@ -3177,22 +3177,19 @@ function closePlayerModal() {
     // Retoma a troca automática de canal da TV (foi pausada ao abrir o player)
     if (typeof tvResumeAutoChannel === 'function') tvResumeAutoChannel();
 
-    // Garante que o hero-bg-cover (que tampa o buraco do embed) volte ao estado visível,
-    // independentemente de qualquer estado anterior do embed de fundo.
-    const heroCoverEl = document.getElementById('hero-bg-cover');
-    if (heroCoverEl) heroCoverEl.classList.remove('cover-hidden');
-
-    // Garante que o embed de fundo esteja completamente oculto (sem buraco preto)
+    // Garante que o embed de fundo esteja completamente encerrado e a imagem de fundo
+    // apareça completa (sem buraco), independente do estado anterior do embed.
+    const heroBgEl    = document.getElementById('hero-bg-image');
     const heroEmbedEl = document.getElementById('hero-video-embed');
     const heroIframeEl = document.getElementById('hero-video-iframe');
+    const heroOverlayEl = document.getElementById('hero-overlay');
+
+    if (heroBgEl)     heroBgEl.classList.remove('has-embed-video'); // remove máscara → imagem cheia
+    if (heroIframeEl) heroIframeEl.src = '';                        // corta áudio/imagem parada
     if (heroEmbedEl) {
         heroEmbedEl.classList.remove('embed-visible', 'embed-fadeout');
         heroEmbedEl.classList.add('hidden');
     }
-    if (heroIframeEl) heroIframeEl.src = '';
-
-    // Restaura o overlay do hero ao estado padrão (sem o gradiente lateral do embed)
-    const heroOverlayEl = document.getElementById('hero-overlay');
     if (heroOverlayEl) heroOverlayEl.style.background = '';
 
     // Agora que o player fechou, re-renderiza o Hero (foi ignorado enquanto o player estava aberto)
@@ -3650,7 +3647,7 @@ let heroVideoPlayedOnce = false;
 
     let fadeOutTimer = null;
 
-    // ── Abre o embed: vídeo aparece pelo buraco oval da máscara ──
+    // ── Abre o embed: aplica máscara na imagem e revela o vídeo pelo buraco oval ──
     function openHeroEmbed(videoId) {
         pauseBgMusic();
         clearTimeout(fadeOutTimer);
@@ -3661,8 +3658,8 @@ let heroVideoPlayedOnce = false;
 
         heroIframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
 
-        // Dissolve o véu oval → buraco aparece revelando o vídeo
-        if (heroCover) heroCover.classList.add('cover-hidden');
+        // Aplica a máscara oval na imagem de fundo → cria o buraco que revela o vídeo
+        heroBg.classList.add('has-embed-video');
 
         if (heroOverlay) heroOverlay.style.background =
             'linear-gradient(to right, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.3) 35%, transparent 55%)';
@@ -3674,34 +3671,33 @@ let heroVideoPlayedOnce = false;
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
-    // ── Fecha o embed: véu oval volta a cobrir o buraco suavemente ──
-    // immediate=true: para o áudio na hora (usado quando outro vídeo é acionado)
-    // immediate=false (padrão): fade-out animado (fim natural do vídeo ou botão X)
+    // ── Fecha o embed e restaura a imagem de fundo completa (sem buraco) ──
+    // immediate=true: para o iframe na hora (evita áudio sobreposto ao abrir outro vídeo)
+    // immediate=false: fade-out suave (fim natural do vídeo ou botão X)
     function closeHeroEmbed(immediate) {
         if (heroEmbed.classList.contains('hidden')) return;
         clearTimeout(fadeOutTimer);
 
-        // Para o iframe imediatamente para evitar sobreposição de áudio com o próximo vídeo
-        if (immediate) {
-            heroIframe.src = '';
-        }
+        // Zera o iframe imediatamente para cortar áudio/imagem parada
+        heroIframe.src = '';
 
-        // Fade-out do vídeo
+        // Fade-out do embed
         heroEmbed.classList.remove('embed-visible');
         heroEmbed.classList.add('embed-fadeout');
 
-        // Véu oval reaparece cobrindo o buraco junto com o fade-out — restaura imagem de fundo completa
-        if (heroCover) heroCover.classList.remove('cover-hidden');
+        // Remove a máscara da imagem de fundo → imagem volta completa, sem buraco
+        heroBg.classList.remove('has-embed-video');
+
+        // Restaura o overlay ao estado padrão
         if (heroOverlay) heroOverlay.style.background = '';
 
         fadeOutTimer = setTimeout(() => {
-            heroIframe.src = '';
             heroEmbed.classList.remove('embed-fadeout');
             heroEmbed.classList.add('hidden');
         }, 1050);
     }
 
-    // Expõe globalmente para openPlayerModal fechar o embed ao abrir qualquer vídeo (para imediato)
+    // Expõe globalmente para openPlayerModal fechar o embed ao abrir qualquer vídeo
     window.closeHeroEmbedIfOpen = function() { closeHeroEmbed(true); };
 
     // ── Expõe também para setupHeroBanner disparar o autoplay ──
@@ -3736,11 +3732,9 @@ let heroVideoPlayedOnce = false;
         try {
             const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
             if (!data) return;
-            // Estado 0 = ended; zera o iframe na hora (evita tela parada do YouTube)
-            // e inicia o fade-out para voltar à imagem de fundo completa
+            // Estado 0 = ended; fecha o embed (src já é zerado dentro de closeHeroEmbed)
             if (data.event === 'onStateChange' && data.info === 0) {
-                if (heroIframe) heroIframe.src = ''; // para imediatamente
-                closeHeroEmbed(true);
+                closeHeroEmbed();
             }
             // Quando o player está pronto, registra o listener de estado
             if (data.event === 'onReady') {

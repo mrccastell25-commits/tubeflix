@@ -781,7 +781,13 @@ body {
     transition: background-image 0.8s ease, opacity 0.5s ease;
     z-index: 2;
     pointer-events: none;
-    /* Sem vídeo: imagem cheia — máscara que bloqueia tudo */
+    /* Estado padrão: sem máscara — imagem de fundo aparece completa, sem buraco */
+    -webkit-mask-image: none;
+    mask-image: none;
+}
+
+/* Máscara aplicada apenas enquanto o vídeo de fundo está ativo (classe adicionada via JS) */
+.hero-background.has-embed-video {
     -webkit-mask-image: radial-gradient(
         ellipse 62% 55% at 62% 52%,
         transparent 0%,
@@ -802,27 +808,9 @@ body {
     );
 }
 
-/* Camada sólida sobre a máscara — cobre o buraco quando não há vídeo */
-/* Usamos um div extra #hero-bg-cover controlado via JS */
+/* #hero-bg-cover mantido no DOM por compatibilidade mas não é mais necessário */
 #hero-bg-cover {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 80vh;
-    z-index: 2; /* mesmo nível da imagem, na frente dela via stacking */
-    pointer-events: none;
-    /* Gradiente oval opaco tampando o buraco — mesmas coordenadas da máscara */
-    background: radial-gradient(
-        ellipse 62% 55% at 62% 52%,
-        rgba(0,0,0,1)   0%,
-        rgba(0,0,0,0.92) 22%,
-        rgba(0,0,0,0.60) 36%,
-        rgba(0,0,0,0.18) 50%,
-        transparent 62%
-    );
-    opacity: 1;
-    transition: opacity 0.6s ease; /* fecha rápido (0.6s) para cobrir antes do embed sumir */
+    display: none;
 }
 
 #hero-bg-cover.cover-hidden {

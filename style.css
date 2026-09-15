@@ -99,12 +99,16 @@ body {
     font-family: var(--font-heading);
     font-size: 1.8rem;
     font-weight: 800;
-    color: var(--netflix-red);
-    letter-spacing: -1.5px;
+    letter-spacing: -1px;
 }
 
-.logo span {
-    color: var(--text-color);
+.logo-internet {
+    color: var(--netflix-red);
+    font-weight: 800;
+}
+
+.logo-store {
+    color: #ffffff;
     font-weight: 600;
 }
 
@@ -3771,4 +3775,10 @@ body.firebase-banner-active .hero-banner {
     width: 18px;
     height: 18px;
     pointer-events: none;
+}
+
+/* Banner hero: meta (match, ano, rating, duração) e título do vídeo ocultados */
+.hero-meta,
+#hero-title {
+    display: none !important;
 }

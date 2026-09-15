@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TubeFlix - Sua Plataforma de Vídeos do YouTube estilo Netflix</title>
+    <title>Internet Store - Sua Plataforma de Vídeos</title>
     <style id="tubeflix-preload-style">
         /* Garante loading visível e conteúdo oculto ANTES do JS inicializar.
            O app.js remove esse <style> inteiro assim que o Firebase responde. */
@@ -35,7 +35,7 @@
             <button class="nav-toggle-btn" id="nav-toggle-btn" aria-label="Abrir menu" aria-expanded="false">
                 <i data-lucide="menu"></i>
             </button>
-            <h1 class="logo">TUBE<span>FLIX</span></h1>
+            <h1 class="logo"><span class="logo-internet">Internet</span> <span class="logo-store">Store</span></h1>
 
             <!-- Desktop: apenas Início + botão Catálogo -->
             <div class="nav-desktop-links" id="nav-desktop-links">
@@ -139,13 +139,8 @@
         </div>
         <div class="hero-overlay" id="hero-overlay"></div>
         <div class="hero-content">
-            <h2 class="hero-title" id="hero-title">Título do Vídeo em Destaque</h2>
-            <div class="hero-meta">
-                <span class="match-score" id="hero-match">98% Match</span>
-                <span class="release-year" id="hero-year">2026</span>
-                <span class="age-rating rating-16" id="hero-rating">16+</span>
-                <span class="duration" id="hero-duration">2h 15m</span>
-            </div>
+<!-- hero-title removido -->
+<!-- hero-meta removido -->
             <p class="hero-description" id="hero-description">
                 Esta é uma descrição emocionante de exemplo sobre o vídeo que está em destaque. 
                 Adicione seus próprios vídeos do YouTube e o sistema escolherá automaticamente um destaque premium para a capa.
@@ -523,6 +518,10 @@
                         <i data-lucide="lock"></i>
                         <span>Senha</span>
                     </button>
+                    <button class="btn-edit-categories" id="btn-edit-hero-banner" title="Configurar imagem e texto do banner principal">
+                        <i data-lucide="image"></i>
+                        <span>Banner</span>
+                    </button>
                     <button class="btn-edit-categories" id="btn-edit-bg-music" title="Música de fundo do site">
                         <i data-lucide="music"></i>
                         <span>Música</span>
@@ -629,6 +628,25 @@
                 <!-- Lista de estações cadastradas -->
                 <div class="radio-admin-list" id="radio-admin-list">
                     <p style="font-size:0.8rem;color:var(--text-muted);">Nenhuma estação cadastrada ainda.</p>
+                </div>
+            </div>
+
+
+            <!-- Painel de configuração do Banner Principal -->
+            <div id="hero-banner-panel" class="category-labels-panel hidden">
+                <p class="category-labels-hint">Configure a imagem de fundo e o texto descritivo exibidos no banner principal da página inicial. Estas configurações são salvas e sincronizadas entre todos os dispositivos.</p>
+                <div class="category-labels-grid" style="grid-template-columns: 1fr;">
+                    <div class="form-group">
+                        <label for="hero-banner-image-url">URL da Imagem de Fundo</label>
+                        <input type="url" id="hero-banner-image-url" class="form-control" placeholder="https://exemplo.com/imagem.jpg">
+                    </div>
+                    <div class="form-group">
+                        <label for="hero-banner-description">Texto Descritivo (exibido no banner)</label>
+                        <textarea id="hero-banner-description" class="form-control" rows="3" placeholder="Descrição da sua página que aparecerá sobre a imagem de fundo..." style="resize:vertical;"></textarea>
+                    </div>
+                </div>
+                <div class="category-labels-actions">
+                    <button type="button" id="btn-save-hero-banner" class="btn-auth-submit" style="width:auto; padding: 10px 20px;">Salvar Banner</button>
                 </div>
             </div>
 

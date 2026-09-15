@@ -76,7 +76,8 @@ let sharedSettings = {
     customCategories: [],
     favorites: [],
     watchHistory: [],
-    gridDensity: '4'
+    gridDensity: '4',
+    heroSettings: { imageUrl: '', description: '' }
 };
 
 // Retorna a senha atual do painel: a customizada pelo admin (se houver), ou a padrão de fábrica
@@ -153,7 +154,8 @@ function listenToSharedSettings() {
             favorites: data.favorites || [],
             watchHistory: data.watchHistory || [],
             gridDensity: data.gridDensity || '4',
-            radioStations: data.radioStations || []
+            radioStations: data.radioStations || [],
+            heroSettings: data.heroSettings || { imageUrl: '', description: '' }
         };
         myFavoriteList = sharedSettings.favorites;
 
@@ -767,6 +769,7 @@ function setupEventListeners() {
             document.getElementById('cat-label-tutoriais').value = labels.tutoriais;
             renderCustomCategoriesAdminList();
             if (passwordChangePanel) passwordChangePanel.classList.add('hidden');
+            document.getElementById('hero-banner-panel')?.classList.add('hidden');
             categoryLabelsPanel.classList.toggle('hidden');
         });
     }
@@ -853,6 +856,7 @@ function setupEventListeners() {
             document.getElementById('new-admin-password').value = '';
             document.getElementById('confirm-admin-password').value = '';
             if (categoryLabelsPanel) categoryLabelsPanel.classList.add('hidden');
+            document.getElementById('hero-banner-panel')?.classList.add('hidden');
             passwordChangePanel.classList.toggle('hidden');
         });
     }
@@ -885,6 +889,48 @@ function setupEventListeners() {
             showToast('Senha alterada com sucesso!');
         });
     }
+    // ── Painel Banner Principal (admin) ──
+    const btnEditHeroBanner = document.getElementById('btn-edit-hero-banner');
+    const heroBannerPanel   = document.getElementById('hero-banner-panel');
+    if (btnEditHeroBanner && heroBannerPanel) {
+        btnEditHeroBanner.addEventListener('click', () => {
+            const isHidden = heroBannerPanel.classList.contains('hidden');
+            // Fecha todos os outros painéis
+            if (categoryLabelsPanel) categoryLabelsPanel.classList.add('hidden');
+            if (passwordChangePanel) passwordChangePanel.classList.add('hidden');
+            document.getElementById('bg-music-panel')?.classList.add('hidden');
+            heroBannerPanel.classList.toggle('hidden', !isHidden);
+            // Preenche com os valores salvos ao abrir
+            if (isHidden) {
+                const hs = sharedSettings.heroSettings || {};
+                const imgInput  = document.getElementById('hero-banner-image-url');
+                const descInput = document.getElementById('hero-banner-description');
+                if (imgInput)  imgInput.value  = hs.imageUrl    || '';
+                if (descInput) descInput.value = hs.description || '';
+            }
+        });
+    }
+
+    // Salvar configurações do Banner no Firebase
+    const btnSaveHeroBanner = document.getElementById('btn-save-hero-banner');
+    if (btnSaveHeroBanner) {
+        btnSaveHeroBanner.addEventListener('click', () => {
+            if (useLocalStorageFallback) { warnFirebaseUnavailable(); return; }
+            const imageUrl    = (document.getElementById('hero-banner-image-url')?.value  || '').trim();
+            const description = (document.getElementById('hero-banner-description')?.value || '').trim();
+            const heroSettings = { imageUrl, description };
+            sharedSettings.heroSettings = heroSettings; // atualização otimista local
+            settingsRef.child('heroSettings').set(heroSettings)
+                .then(() => {
+                    showToast('Banner atualizado com sucesso!');
+                    // Força re-sortear e re-renderizar o banner com as novas configurações
+                    _heroFeaturedVideo = null;
+                    setupHeroBanner();
+                })
+                .catch(() => showToast('Erro ao salvar o banner.', { isError: true }));
+        });
+    }
+
     // ── Painel da Web Rádio (admin) ──
     const btnEditBgMusic = document.getElementById('btn-edit-bg-music');
     const bgMusicPanel = document.getElementById('bg-music-panel');
@@ -892,6 +938,7 @@ function setupEventListeners() {
         btnEditBgMusic.addEventListener('click', () => {
             if (categoryLabelsPanel) categoryLabelsPanel.classList.add('hidden');
             if (passwordChangePanel) passwordChangePanel.classList.add('hidden');
+            heroBannerPanel?.classList.add('hidden');
             bgMusicPanel.classList.toggle('hidden');
             if (!bgMusicPanel.classList.contains('hidden')) renderRadioAdminList();
         });
@@ -2068,13 +2115,21 @@ function groupAndSortSeriesEpisodes(videos) {
 }
 
 // Configurar o Banner de Destaque
+// Vídeo sorteado para o banner nesta sessão — fixado na primeira chamada para não mudar
+// a cada re-renderização causada pelo Firebase on('value')
+let _heroFeaturedVideo = null;
+
 function setupHeroBanner() {
-    // Coleta todos os vídeos marcados como destaque e sorteia um aleatoriamente.
-    // Múltiplos vídeos podem ter featured=true — o banner exibe um diferente a cada carregamento.
-    const featuredVideos = allVideos.filter(v => v.featured && v.title);
-    let featuredVideo = featuredVideos.length > 0
-        ? featuredVideos[Math.floor(Math.random() * featuredVideos.length)]
-        : allVideos.find(v => v.title); // fallback: primeiro vídeo disponível
+    // Sorteia o vídeo destaque UMA vez por sessão (fixado em _heroFeaturedVideo).
+    // Chamadas subsequentes do Firebase on('value') reutilizam o mesmo vídeo sorteado,
+    // evitando que o banner mude enquanto o usuário navega.
+    if (!_heroFeaturedVideo) {
+        const featuredVideos = allVideos.filter(v => v.featured && v.title);
+        _heroFeaturedVideo = featuredVideos.length > 0
+            ? featuredVideos[Math.floor(Math.random() * featuredVideos.length)]
+            : allVideos.find(v => v.title); // fallback: primeiro vídeo disponível
+    }
+    const featuredVideo = _heroFeaturedVideo;
 
     if (!featuredVideo) {
         document.getElementById('hero-banner').classList.add('hidden');
@@ -2082,32 +2137,29 @@ function setupHeroBanner() {
     }
 
     document.getElementById('hero-banner').classList.remove('hidden');
-    
-    // Metadados do Hero
-    heroTitle.textContent = featuredVideo.title;
-    heroDescription.textContent = featuredVideo.description;
-    heroBgImage.style.backgroundImage = `url('${featuredVideo.imageUrl}')`;
-    // Aplica o enquadramento (posição e zoom) definido no painel admin, mantendo o "cover" como base
-    const heroPosX = (featuredVideo.imagePosX != null) ? featuredVideo.imagePosX : 50;
-    const heroPosY = (featuredVideo.imagePosY != null) ? featuredVideo.imagePosY : 20;
-    const heroZoom = (featuredVideo.imageZoom != null) ? featuredVideo.imageZoom : 100;
-    heroBgImage.style.backgroundPosition = `${heroPosX}% ${heroPosY}%`;
-    heroBgImage.style.transform = `scale(${heroZoom / 100})`;
-    
-    // Porcentagem de match randômica persistente para o vídeo
-    const matchVal = (100 - (featuredVideo.title.length % 10)).toString();
-    heroMatch.textContent = `${matchVal}% Match`;
-    
-    heroYear.textContent = featuredVideo.year || "2026";
-    heroDuration.textContent = featuredVideo.duration;
 
-    // Configura classe da classificação indicativa do Hero
-    heroRating.className = `age-rating rating-${featuredVideo.rating.toLowerCase()}`;
-    heroRating.textContent = featuredVideo.rating === "L" ? "L" : `${featuredVideo.rating}+`;
+    // Imagem de fundo: usa a configurada no painel Banner (se houver), senão a capa do vídeo sorteado
+    const heroSettings = sharedSettings.heroSettings || {};
+    const bgUrl = (heroSettings.imageUrl || '').trim() || featuredVideo.imageUrl;
+    heroBgImage.style.backgroundImage = `url('${bgUrl}')`;
+
+    // Quando a imagem vem do painel Banner (custom), centraliza sem zoom especial
+    if ((heroSettings.imageUrl || '').trim()) {
+        heroBgImage.style.backgroundPosition = '50% 20%';
+        heroBgImage.style.transform = 'scale(1)';
+    } else {
+        const heroPosX = (featuredVideo.imagePosX != null) ? featuredVideo.imagePosX : 50;
+        const heroPosY = (featuredVideo.imagePosY != null) ? featuredVideo.imagePosY : 20;
+        const heroZoom = (featuredVideo.imageZoom != null) ? featuredVideo.imageZoom : 100;
+        heroBgImage.style.backgroundPosition = `${heroPosX}% ${heroPosY}%`;
+        heroBgImage.style.transform = `scale(${heroZoom / 100})`;
+    }
+
+    // Descrição: usa o texto do painel Banner (se houver), senão a descrição do vídeo sorteado
+    const descText = (heroSettings.description || '').trim() || featuredVideo.description || '';
+    if (heroDescription) heroDescription.textContent = descText;
 
     // Eventos do botão "Assistir" do Hero
-    // Busca o elemento atual no DOM (pode já ter sido substituído em uma chamada anterior) para
-    // evitar erro ao tentar substituir um nó que não está mais no DOM
     const currentPlayBtn = document.getElementById('hero-play-btn');
     const newPlayBtn = currentPlayBtn.cloneNode(true);
     currentPlayBtn.parentNode.replaceChild(newPlayBtn, currentPlayBtn);

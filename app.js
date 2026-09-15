@@ -3609,6 +3609,7 @@ function importLibraryFromJson(e) {
 
 (function initHeroEmbed() {
     const heroBg     = document.getElementById('hero-bg-image');
+    const heroCover  = document.getElementById('hero-bg-cover');
     const heroOverlay= document.getElementById('hero-overlay');
     const heroEmbed  = document.getElementById('hero-video-embed');
     const heroIframe = document.getElementById('hero-video-iframe');
@@ -3626,39 +3627,43 @@ function importLibraryFromJson(e) {
 
     let fadeOutTimer = null;
 
-    // ── Abre o embed com fade-in sobre a imagem de fundo ──
+    // ── Abre o embed: vídeo aparece pelo buraco oval da máscara ──
     function openHeroEmbed(videoId) {
         pauseBgMusic();
         clearTimeout(fadeOutTimer);
 
-        // Garante estado limpo antes de abrir
         heroEmbed.classList.remove('hidden', 'embed-fadeout');
-        heroEmbed.classList.remove('embed-visible'); // força reflow antes do fade-in
+        heroEmbed.classList.remove('embed-visible');
         heroEmbed.offsetHeight; // reflow
 
         heroIframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
 
-        // Inicia fade-in no próximo frame
+        // Dissolve o véu oval → buraco aparece revelando o vídeo
+        if (heroCover) heroCover.classList.add('cover-hidden');
+
+        if (heroOverlay) heroOverlay.style.background =
+            'linear-gradient(to right, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.3) 35%, transparent 55%)';
+
         requestAnimationFrame(() => {
             heroEmbed.classList.add('embed-visible');
         });
 
-        if (heroOverlay) heroOverlay.style.background =
-            'linear-gradient(to right, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.05) 35%, transparent 100%)';
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
-    // ── Fecha o embed com fade-out suave, depois limpa o iframe ──
+    // ── Fecha o embed: véu oval volta a cobrir o buraco suavemente ──
     function closeHeroEmbed() {
         if (heroEmbed.classList.contains('hidden')) return;
         clearTimeout(fadeOutTimer);
 
-        // Inicia fade-out
+        // Fade-out do vídeo
         heroEmbed.classList.remove('embed-visible');
         heroEmbed.classList.add('embed-fadeout');
+
+        // Véu oval reaparece cobrindo o buraco junto com o fade-out
+        if (heroCover) heroCover.classList.remove('cover-hidden');
         if (heroOverlay) heroOverlay.style.background = '';
 
-        // Após a transição (1s), para o iframe e oculta
         fadeOutTimer = setTimeout(() => {
             heroIframe.src = '';
             heroEmbed.classList.remove('embed-fadeout');
@@ -3707,7 +3712,6 @@ function importLibraryFromJson(e) {
     // ── Scroll: oculta/mostra fundo fixo quando hero sair da viewport ──
     function onScroll() {
         if (!heroBanner) return;
-        // Se o banner ainda estiver oculto (preload), não faz nada
         if (heroBanner.classList.contains('hidden') ||
             getComputedStyle(heroBanner).display === 'none') return;
 
@@ -3715,6 +3719,7 @@ function importLibraryFromJson(e) {
         const visible = rect.bottom > heroBanner.offsetHeight * 0.2;
 
         heroBg.classList.toggle('hero-bg-hidden', !visible);
+        if (heroCover)  heroCover.classList.toggle('hero-bg-hidden', !visible);
         if (heroOverlay) heroOverlay.classList.toggle('hero-bg-hidden', !visible);
         heroEmbed.classList.toggle('hero-bg-hidden', !visible);
     }

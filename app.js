@@ -3607,6 +3607,11 @@ function importLibraryFromJson(e) {
 //  HERO EMBED INLINE — vídeo fixo no fundo
 // =============================================
 
+// Controla se o vídeo de fundo já foi reproduzido uma vez nesta sessão.
+// Após a primeira execução, nunca mais deve tocar automaticamente —
+// nem ao voltar à tela principal, nem após fechar o player, etc.
+let heroVideoPlayedOnce = false;
+
 (function initHeroEmbed() {
     const heroBg     = document.getElementById('hero-bg-image');
     const heroCover  = document.getElementById('hero-bg-cover');
@@ -3652,15 +3657,22 @@ function importLibraryFromJson(e) {
     }
 
     // ── Fecha o embed: véu oval volta a cobrir o buraco suavemente ──
-    function closeHeroEmbed() {
+    // immediate=true: para o áudio na hora (usado quando outro vídeo é acionado)
+    // immediate=false (padrão): fade-out animado (fim natural do vídeo ou botão X)
+    function closeHeroEmbed(immediate) {
         if (heroEmbed.classList.contains('hidden')) return;
         clearTimeout(fadeOutTimer);
+
+        // Para o iframe imediatamente para evitar sobreposição de áudio com o próximo vídeo
+        if (immediate) {
+            heroIframe.src = '';
+        }
 
         // Fade-out do vídeo
         heroEmbed.classList.remove('embed-visible');
         heroEmbed.classList.add('embed-fadeout');
 
-        // Véu oval reaparece cobrindo o buraco junto com o fade-out
+        // Véu oval reaparece cobrindo o buraco junto com o fade-out — restaura imagem de fundo completa
         if (heroCover) heroCover.classList.remove('cover-hidden');
         if (heroOverlay) heroOverlay.style.background = '';
 
@@ -3671,11 +3683,22 @@ function importLibraryFromJson(e) {
         }, 1050);
     }
 
-    // Expõe globalmente para openPlayerModal fechar o embed ao abrir qualquer vídeo
-    window.closeHeroEmbedIfOpen = closeHeroEmbed;
+    // Expõe globalmente para openPlayerModal fechar o embed ao abrir qualquer vídeo (para imediato)
+    window.closeHeroEmbedIfOpen = function() { closeHeroEmbed(true); };
 
     // ── Expõe também para setupHeroBanner disparar o autoplay ──
+    // Regras:
+    //  • Nunca executa em telas mobile (largura ≤ 860 px)
+    //  • Só executa UMA vez por sessão (primeira carga da página)
+    //  • Qualquer retorno posterior à tela principal não dispara novamente
     window.openHeroEmbedForFeatured = function() {
+        // Não executa em celular — mantém apenas a imagem de fundo
+        if (typeof isMobileViewport === 'function' && isMobileViewport()) return;
+
+        // Não executa se o vídeo de fundo já foi reproduzido nesta sessão
+        if (heroVideoPlayedOnce) return;
+        heroVideoPlayedOnce = true;
+
         const featured = (typeof allVideos !== 'undefined')
             ? (allVideos.find(v => v.featured && v.title) || allVideos.find(v => v.title))
             : null;

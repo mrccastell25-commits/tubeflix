@@ -3177,6 +3177,24 @@ function closePlayerModal() {
     // Retoma a troca automática de canal da TV (foi pausada ao abrir o player)
     if (typeof tvResumeAutoChannel === 'function') tvResumeAutoChannel();
 
+    // Garante que o hero-bg-cover (que tampa o buraco do embed) volte ao estado visível,
+    // independentemente de qualquer estado anterior do embed de fundo.
+    const heroCoverEl = document.getElementById('hero-bg-cover');
+    if (heroCoverEl) heroCoverEl.classList.remove('cover-hidden');
+
+    // Garante que o embed de fundo esteja completamente oculto (sem buraco preto)
+    const heroEmbedEl = document.getElementById('hero-video-embed');
+    const heroIframeEl = document.getElementById('hero-video-iframe');
+    if (heroEmbedEl) {
+        heroEmbedEl.classList.remove('embed-visible', 'embed-fadeout');
+        heroEmbedEl.classList.add('hidden');
+    }
+    if (heroIframeEl) heroIframeEl.src = '';
+
+    // Restaura o overlay do hero ao estado padrão (sem o gradiente lateral do embed)
+    const heroOverlayEl = document.getElementById('hero-overlay');
+    if (heroOverlayEl) heroOverlayEl.style.background = '';
+
     // Agora que o player fechou, re-renderiza o Hero (foi ignorado enquanto o player estava aberto)
     setupHeroBanner();
 }
@@ -3718,9 +3736,11 @@ let heroVideoPlayedOnce = false;
         try {
             const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
             if (!data) return;
-            // Estado 0 = ended; inicia fade-out e volta à imagem de fundo
+            // Estado 0 = ended; zera o iframe na hora (evita tela parada do YouTube)
+            // e inicia o fade-out para voltar à imagem de fundo completa
             if (data.event === 'onStateChange' && data.info === 0) {
-                closeHeroEmbed();
+                if (heroIframe) heroIframe.src = ''; // para imediatamente
+                closeHeroEmbed(true);
             }
             // Quando o player está pronto, registra o listener de estado
             if (data.event === 'onReady') {

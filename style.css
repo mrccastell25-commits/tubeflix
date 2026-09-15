@@ -3751,7 +3751,7 @@ body.firebase-banner-active .hero-banner {
     height: 40px;
     border-radius: 50%;
     border: none;
-    background: rgba(0, 0, 0, 0.75);
+    background: rgba(229, 9, 20, 0.85); /* vermelho sempre visível */
     color: #fff;
     cursor: pointer;
     display: flex;
@@ -3763,7 +3763,7 @@ body.firebase-banner-active .hero-banner {
 }
 
 .hero-embed-close:hover {
-    background: rgba(229, 9, 20, 0.9);
+    background: rgba(229, 9, 20, 1);
     transform: scale(1.1);
 }
 

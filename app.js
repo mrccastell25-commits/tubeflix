@@ -1211,10 +1211,9 @@ function setupEventListeners() {
             return;
         }
 
-        // Se este vídeo for Destaque Principal, desativa os outros
-        if (videoData.featured) {
-            await clearAllFeaturedFlags();
-        }
+        // Múltiplos vídeos podem ser marcados como destaque simultaneamente —
+        // o sistema sorteia um deles para exibir no banner a cada carregamento.
+        // Não limpamos mais os outros destaques ao salvar.
 
         try {
             let savedId = editId;
@@ -2070,12 +2069,12 @@ function groupAndSortSeriesEpisodes(videos) {
 
 // Configurar o Banner de Destaque
 function setupHeroBanner() {
-    let featuredVideo = allVideos.find(v => v.featured && v.title);
-    
-    // Se não houver vídeo explicitamente marcado como destaque, escolhe o primeiro da lista
-    if (!featuredVideo) {
-        featuredVideo = allVideos.find(v => v.title);
-    }
+    // Coleta todos os vídeos marcados como destaque e sorteia um aleatoriamente.
+    // Múltiplos vídeos podem ter featured=true — o banner exibe um diferente a cada carregamento.
+    const featuredVideos = allVideos.filter(v => v.featured && v.title);
+    let featuredVideo = featuredVideos.length > 0
+        ? featuredVideos[Math.floor(Math.random() * featuredVideos.length)]
+        : allVideos.find(v => v.title); // fallback: primeiro vídeo disponível
 
     if (!featuredVideo) {
         document.getElementById('hero-banner').classList.add('hidden');
